@@ -100,6 +100,40 @@ impl Order {
     		self.trader_id, self.order_type,
     		self.price, self.quantity);
     }
+
+    /// Given a price, calculates the quantity of shares
+    /// that this ask flow order is willing to sell.
+    pub fn calc_flow_supply(&self, price: f64) -> f64 {
+    	assert_eq!(self.ex_type, ExchangeType::FlowOrder);
+    	assert_eq!(self.trade_type, TradeType::Ask);
+    	let p_low = self.p_low;
+    	let p_high = self.p_high;
+    	let u = self.quantity;
+    	if price < p_low {
+	    		0.0
+    	} else if price >= p_high {
+    		u
+    	} else {
+    		u + ((price - p_high) / (p_high - p_low)) * u
+    	}
+    }
+
+    /// Given a price, calculates the quantity of shares
+    /// that this bid flow order is willing to buy.
+    pub fn calc_flow_demand(&self, price: f64) -> f64 {
+    	assert_eq!(self.ex_type, ExchangeType::FlowOrder);
+    	assert_eq!(self.trade_type, TradeType::Bid);
+    	let p_low = self.p_low;
+    	let p_high = self.p_high;
+    	let u = self.quantity;
+    	if price <= p_low {
+    		u
+    	} else if price > p_high {
+    		0.0
+    	} else {
+    		u * ((p_high - price) / (p_high - p_low))
+    	}
+    }
 }
 
 

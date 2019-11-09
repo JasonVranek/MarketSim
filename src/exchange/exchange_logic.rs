@@ -1,6 +1,7 @@
 use crate::controller::{Task, State};
 use crate::order::order_book::Book;
 use crate::order::order::Order;
+use crate::exchange::MarketType;
 
 use std::sync::{Mutex, Arc};
 use std::cmp::Ordering;
@@ -12,16 +13,49 @@ use crate::utility::get_time;
 const EPSILON: f64 =  0.000_000_001;
 const MAX_PRICE: f64 = 999_999_999.0;
 const MIN_PRICE: f64 = 0.0;
+const MAX_ITERS: usize = 1000;
 
+
+pub struct AuctionResults {
+	pub auction_type: MarketType,
+	pub uniform_price: f64,
+	pub agg_demand: f64,
+	pub agg_supply: f64,
+}
+
+impl AuctionResults {
+	pub fn new(a_t: MarketType, p: f64, agg_d: f64, agg_s: f64) -> AuctionResults {
+		AuctionResults {
+			auction_type: a_t,
+			uniform_price: p,
+			agg_demand: agg_d,
+			agg_supply: agg_s,
+		}
+	}
+}
 
 pub struct Auction {}
 
 // TODO replace prints with way to log tx's
 
 impl Auction {
-	// Checks whether the new bid crosses the best ask. 
-	// A new bid will cross at best ask.price iff best ask.price ≤ new bid.price
-	// If the new order's quantity is not satisfied, the next best ask is checked.
+
+	pub fn run_auction(bids: Arc<Book>, asks:Arc<Book>, m_t: MarketType) -> Option<AuctionResults>{
+		match m_t {
+			MarketType::CDA => None,
+			MarketType::FBA => {
+				Auction::frequent_batch_auction(bids, asks)
+			},
+			MarketType::KLF => {
+				Auction::bs_cross(bids, asks)
+			},
+		}
+	}
+
+	/// ***CDA function***
+	/// Checks whether the new bid crosses the best ask. 
+	/// A new bid will cross at best ask.price iff best ask.price ≤ new bid.price
+	/// If the new order's quantity is not satisfied, the next best ask is checked.
 	pub fn calc_bid_crossing(bids: Arc<Book>, asks:Arc<Book>, mut new_bid: Order) {
 		if new_bid.price >= asks.get_min_price() {
 			// buying for more than best ask is asking for -> tx @ ask price
@@ -92,9 +126,10 @@ impl Auction {
 		}
 	}
 
-	// Checks whether the new ask crosses the best bid. 
-	// A new ask will cross at best bid.price iff best bid.price ≥ new ask.price
-	// If the new order's quantity is not satisfied, the next best bid is checked.
+	/// ***CDA function***
+	/// Checks whether the new ask crosses the best bid. 
+	/// A new ask will cross at best bid.price iff best bid.price ≥ new ask.price
+	/// If the new order's quantity is not satisfied, the next best bid is checked.
 	pub fn calc_ask_crossing(bids: Arc<Book>, asks:Arc<Book>, mut new_ask: Order) {
 		if new_ask.price <= bids.get_max_price() {
 			// asking for less than best bid willing to pay -> tx @ bid price
@@ -164,10 +199,85 @@ impl Auction {
 
 	
 
-	// Calculates which orders in the order book will transact at auction time.
-	pub fn frequent_batch_auction(bids: Arc<Book>, asks: Arc<Book>) -> Option<f64> {
+	/// **FBA function**
+	/// Calculates the uniform clearing price for the orders in the bids and asks books.
+	/// Orders are sorted by price (descending for bids, ascending for asks).
+	/// Outputs the uniform clearing price if it exists and the total trade volume
+	pub fn frequent_batch_auction(bids: Arc<Book>, asks: Arc<Book>) -> Option<AuctionResults> {
 		unimplemented!();
 	}
+
+
+	/// Helper function for Flow Order clearing price calculation: bs_cross
+	/// Iterate over each order in parallel and compute the aggregate supply and
+	/// demand using the order's p_low, p_high, and quantity (u_max).
+	pub fn calc_aggs(p: f64, bids: Arc<Book>, asks: Arc<Book>) -> (f64, f64) {
+		let bids = bids.orders.lock().expect("ERROR: No bids book");
+		let asks = asks.orders.lock().expect("ERROR: No asks book");
+
+		let agg_demand: f64 = bids.par_iter()
+		    .map(|order| {
+		    	if p <= order.p_low {
+		    		order.quantity
+		    	} else if p > order.p_high {
+		    		0.0
+		    	} else {
+		    		order.calc_flow_demand(p)
+		    	}
+		    }).sum();
+
+		let agg_supply: f64 = asks.par_iter()
+		    .map(|order| {
+		    	if p < order.p_low {
+		    		0.0
+		    	} else if p >= order.p_high {
+		    		order.quantity
+		    	} else {
+		    		order.calc_flow_supply(p)
+		    	}
+		    }).sum();
+
+		(agg_demand, agg_supply)
+	}
+
+	/// **KLF function**
+	/// Calculates the market clearing price from the bids and asks books. Uses a 
+	/// binary search to find the intersection point between the aggregates supply and 
+	/// demand curves. 
+	pub fn bs_cross(bids: Arc<Book>, asks: Arc<Book>) -> Option<AuctionResults> {
+		// get_price_bounds obtains locks on the book's prices
+	    let (mut left, mut right) = Auction::get_price_bounds(Arc::clone(&bids), Arc::clone(&asks));
+	    let mut curr_iter = 0;
+	    println!("Min Book price: {}, Max Book price: {}", left, right);
+	    while left < right {
+	    	curr_iter += 1;
+	    	// Find a midpoint with the correct price tick precision
+	    	let index: f64 = (left + right) / 2.0;
+	    	// Calculate the aggregate supply and demand at this price
+	    	let (dem, sup) = Auction::calc_aggs(index, Arc::clone(&bids), Arc::clone(&asks));
+	    	// println!("price_index: {}, dem: {}, sup: {}", index, dem, sup);
+
+	    	if Auction::greater_than_e(&dem, &sup) {  		// dev > sup
+	    		// We are left of the crossing point
+	    		left = index;
+	    	} else if Auction::less_than_e(&dem, &sup) {	// sup > dem
+	    		// We are right of the crossing point
+	    		right = index;
+	    	} else {
+	    		println!("Found cross at: {}", index);
+	    		let result = AuctionResults::new(MarketType::KLF, index, dem, sup);
+	    		return Some(result);
+	    	}
+
+	    	if curr_iter == MAX_ITERS {
+	    		println!("Trouble finding cross in max iterations, got: {}", index);
+	    		let result = AuctionResults::new(MarketType::KLF, index, dem, sup);
+	    		return Some(result);
+	    	}
+	    }
+	    None
+	}
+
 
 	/// Schedules an auction to run on an interval determined by the duration parameter in milliseconds.
 	/// Outputs a task that will be dispatched asynchronously via the controller module.
@@ -180,8 +290,8 @@ impl Auction {
 	    		*state = State::Auction;
 	    	}
 	    	println!("Starting Auction @{:?}", get_time());
-	    	if let Some(cross_price) = Auction::frequent_batch_auction(Arc::clone(&bids), Arc::clone(&asks)) {
-	    		println!("Found Cross at @{:?} \nP = {}\n", get_time(), cross_price);
+	    	if let Some(result) = Auction::frequent_batch_auction(Arc::clone(&bids), Arc::clone(&asks)) {
+	    		println!("Found Cross at @{:?} \nP = {}\n", get_time(), result.uniform_price);
 	    	} else {
 	    		println!("Error, Cross not found\n");
 	    	}
@@ -195,10 +305,10 @@ impl Auction {
 	}
 
 	pub fn get_price_bounds(bids: Arc<Book>, asks: Arc<Book>) -> (f64, f64) {		
-		let bids_min: f64 = bids.get_min_price();
-		let bids_max: f64 = bids.get_max_price();
-		let asks_min: f64 = asks.get_min_price();
-		let asks_max: f64 = asks.get_max_price();
+		let bids_min: f64 = bids.get_min_plow();
+		let bids_max: f64 = bids.get_max_phigh();
+		let asks_min: f64 = asks.get_min_plow();
+		let asks_max: f64 = asks.get_max_phigh();
 
 		(Auction::min_float(&bids_min, &asks_min), Auction::max_float(&bids_max, &asks_max))
 	}

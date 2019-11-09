@@ -195,6 +195,38 @@ pub fn setup_orders() -> (Vec<Order>, Vec<Order>) {
 	(bids, asks)
 }
 
+pub fn setup_flow_orders() -> (Vec<Order>, Vec<Order>) {
+	let mut bids = Vec::<Order>::new();
+	let mut asks = Vec::<Order>::new();
+	for i in 0..100 {
+		bids.push(Order::new(
+			gen_rand_trader_id(), 
+    		OrderType::Enter, 
+    		TradeType::Bid, 
+    		ExchangeType::FlowOrder,
+    		i as f64, 	// p_low
+    		100.0, 		// p_high
+    		0.0,		// price
+    		500.0,		// quantity
+    		0.1, 		// gas
+		));
+		asks.push(Order::new(
+			gen_rand_trader_id(), 
+    		OrderType::Enter, 
+    		TradeType::Ask, 
+    		ExchangeType::FlowOrder,
+    		i as f64, 	// p_low
+    		100.0, 		// p_high
+    		0.0,		// price
+    		500.0,		// quantity
+    		0.1, 		// gas
+		));
+
+	}
+
+	(bids, asks)
+}
+
 // N Bids, 2 Asks
 pub fn setup_ask_cross_orders(num_bids: usize) -> (Vec<Order>, Vec<Order>) {
 	let mut bids = Vec::<Order>::new();

@@ -5,6 +5,7 @@ use crate::blockchain::mem_pool::MemPool;
 use crate::blockchain::mempool_processor::MemPoolProcessor;
 use crate::order::order_book::Book;
 use crate::exchange::MarketType;
+use crate::exchange::exchange_logic::{Auction, AuctionResults};
 
 use std::sync::{Mutex, Arc};
 
@@ -50,8 +51,14 @@ impl Miner {
 	}
 
 	/// 'Publishes' the Miner's frame by sequentially executing the orders in the frame
-	pub fn publish_frame(&mut self, bids: Arc<Book>, asks: Arc<Book>, m_t: MarketType) {
-		MemPoolProcessor::seq_process_orders(&mut self.frame, bids, asks, m_t);
+	pub fn publish_frame(&mut self, bids: Arc<Book>, asks: Arc<Book>, m_t: MarketType) -> Option<AuctionResults> {
+		let handles = MemPoolProcessor::seq_process_orders(&mut self.frame, Arc::clone(&bids), Arc::clone(&asks), m_t.clone());
+		for h in handles {
+			h.join().expect("Failed to publish...");
+		}
+
+		// Run auction after book has been updated (CDA is prcessed in seq_process_orders)
+		Auction::run_auction(bids, asks, m_t)
 	}
 
 

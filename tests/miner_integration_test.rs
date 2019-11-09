@@ -194,6 +194,45 @@ fn test_cda_bid_transaction() {
 }
 
 
+#[test]
+pub fn test_klf_crossing_price() {
+    let pool = Arc::new(common::setup_mem_pool());
+	let bids_book = Arc::new(common::setup_bids_book());
+	let asks_book = Arc::new(common::setup_asks_book());
+	
+	// Setup bids and asks
+	let (bids, asks) = common::setup_flow_orders();
+	let mut handles = Vec::new();
+
+	let mut miner = common::setup_miner();
+	let market_type = MarketType::KLF;
+
+	// Send all the orders in parallel 
+	for bid in bids {
+		handles.push(OrderProcessor::conc_recv_order(bid, Arc::clone(&pool)));
+	}
+	for ask in asks {
+		handles.push(OrderProcessor::conc_recv_order(ask, Arc::clone(&pool)));
+	}
+
+	// Wait for the threads to finish
+	for h in handles {
+		h.join().unwrap();
+	}
+
+	// Create frame from bid order in mempool
+	miner.make_frame(Arc::clone(&pool), BLOCK_SIZE);
+
+	// Process the bid order
+	let results = miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type).unwrap();
+
+	assert_eq!(bids_book.len(), 100);
+	assert_eq!(asks_book.len(), 100);
+
+	assert!(Auction::equal_e(&results.uniform_price, &81.09048166081236));
+}
+
+
 
 
 

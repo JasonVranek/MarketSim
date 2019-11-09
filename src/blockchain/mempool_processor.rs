@@ -66,7 +66,7 @@ impl MemPoolProcessor {
 	    thread::spawn(move || {
 	    	match m_t {
 	    		MarketType::FBA|MarketType::KLF => {
-    				// KLF and FBA have the same behavior
+    				// KLF and FBA are processed the same way by the order book
 					match order.trade_type {
 						TradeType::Ask => {
 							asks.add_order(order).expect("Failed to add order");

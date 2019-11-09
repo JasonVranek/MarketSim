@@ -200,6 +200,30 @@ impl Book {
     	price.clone() as f64
     }
 
+    /// Returns lowest p_low for the book
+    pub fn get_min_plow(&self) -> f64 {
+    	let orders = self.orders.lock().expect("couldn't acquire lock");
+    	let mut p_low = MAX;
+    	for order in orders.iter() {
+    		if order.p_low < p_low {
+    			p_low = order.p_low;
+    		}
+    	}
+    	p_low
+    }
+
+    /// Returns highest p_high for the book
+    pub fn get_max_phigh(&self) -> f64 {
+    	let orders = self.orders.lock().expect("couldn't acquire lock");
+    	let mut p_high = 0.0;
+    	for order in orders.iter() {
+    		if order.p_high > p_high {
+    			p_high = order.p_high;
+    		}
+    	}
+    	p_high
+    }
+
     /// Finds a new maximum Book price in the event that the previous was
     /// updated or cancelled and updates the Book. Utilizes Book being sorted by p_high
     pub fn find_new_max(&self) {
