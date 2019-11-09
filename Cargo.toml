@@ -1,0 +1,21 @@
+[package]
+name = "flow_rs"
+version = "0.1.0"
+authors = ["Jason Vranek <jvranek@ucsc.edu>"]
+edition = "2018"
+
+[dependencies]
+rayon = "1.0"
+rand = "0.6.4"
+tokio = "0.1.14"
+futures = "0.1"
+tokio-serde-json = "0.2"
+serde_json = "1.0"
+serde = "1.0"
+tokio-serde = "0.3"
+serde_derive = "1.0"
+ws = "0.7.9"
+env_logger = "0.6.0"
+log = "0.4.8"
+log4rs = "0.8.3"
+more-asserts = "*"
