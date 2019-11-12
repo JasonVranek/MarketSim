@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use core::f64::MAX;
 use crate::order::order::{Order, TradeType};
 
@@ -137,6 +138,32 @@ impl Book {
 		return None
 	}
 
+	pub fn merge_sort_books(book1: Arc<Book>, book2: Arc<Book>) -> Book {
+		let merged = Book::new(TradeType::Bid);
+		{
+			let mut m_orders = merged.orders.lock().expect("Error...");
+			let b1_orders = book1.orders.lock().expect("ERROR: Couldn't lock book to update order");
+			for o in b1_orders.iter() {
+				m_orders.push(o.clone());
+			}
+
+			let b2_orders = book2.orders.lock().expect("ERROR: Couldn't lock book to update order");
+			for o in b2_orders.iter() {
+				m_orders.push(o.clone());
+			}
+		}
+
+		merged.sort_desc_price();
+		return merged;
+	}
+
+	pub fn sort_desc_price(&self) {
+    	// Acquire the lock
+        let mut orders = self.orders.lock().expect("ERROR: Couldn't lock book to sort");
+		// Sort orders in descending order
+		orders.sort_by(|a, b| a.price.partial_cmp(&b.price).expect("Failed to sorted").reverse());
+    }
+
     pub fn peek_id_pos(&self, trader_id: String) -> Option<usize> {
     	// Acquire the lock
         let orders = self.orders.lock().unwrap();
@@ -198,6 +225,12 @@ impl Book {
     pub fn get_max_price(&self) -> f64 {
     	let price = self.max_price.lock().expect("Error getting max price");
     	price.clone() as f64
+    }
+
+    /// Returns sum of book's volume
+    pub fn get_book_volume(&self) -> f64 {
+    	let orders = self.orders.lock().expect("couldn't acquire lock");
+    	orders.iter().map(|o| o.quantity).sum()
     }
 
     /// Returns lowest p_low for the book

@@ -1,35 +1,59 @@
 use crate::controller::{Task, State};
 use crate::order::order_book::Book;
-use crate::order::order::Order;
+use crate::order::order::{Order, TradeType};
 use crate::exchange::MarketType;
+use crate::utility::get_time;
 
 use std::sync::{Mutex, Arc};
 use std::cmp::Ordering;
 
 use rayon::prelude::*;
-use crate::utility::get_time;
+use math::round;
 
 
 const EPSILON: f64 =  0.000_000_001;
 const MAX_PRICE: f64 = 999_999_999.0;
 const MIN_PRICE: f64 = 0.0;
 const MAX_ITERS: usize = 1000;
+const PRECISION: i8 = 3;
 
-
-pub struct AuctionResults {
-	pub auction_type: MarketType,
-	pub uniform_price: f64,
-	pub agg_demand: f64,
-	pub agg_supply: f64,
+#[derive(Debug)]
+pub struct PlayerUpdate {
+	pub id_payer: String,
+	pub id_vol_filler: String,
+	pub price: f64,
+	pub volume: f64,
 }
 
-impl AuctionResults {
-	pub fn new(a_t: MarketType, p: f64, agg_d: f64, agg_s: f64) -> AuctionResults {
-		AuctionResults {
+impl PlayerUpdate {
+	pub fn new(id_payer: String, id_vol_filler: String, price: f64, volume: f64) -> PlayerUpdate {
+		PlayerUpdate {
+			id_payer,
+			id_vol_filler,
+			price,
+			volume,
+		}
+	}
+}
+
+#[derive(Debug)]
+pub struct TradeResults {
+	pub auction_type: MarketType,
+	pub uniform_price: Option<f64>,
+	pub agg_demand: f64,
+	pub agg_supply: f64,
+	pub cross_results: Option<Vec<PlayerUpdate>>,
+}
+
+impl TradeResults {
+	pub fn new(a_t: MarketType, p: Option<f64>, agg_d: f64, agg_s: f64, player_updates: Option<Vec<PlayerUpdate>>) -> TradeResults {
+		TradeResults {
 			auction_type: a_t,
 			uniform_price: p,
 			agg_demand: agg_d,
 			agg_supply: agg_s,
+			cross_results: player_updates
+
 		}
 	}
 }
@@ -40,7 +64,7 @@ pub struct Auction {}
 
 impl Auction {
 
-	pub fn run_auction(bids: Arc<Book>, asks:Arc<Book>, m_t: MarketType) -> Option<AuctionResults>{
+	pub fn run_auction(bids: Arc<Book>, asks:Arc<Book>, m_t: MarketType) -> Option<TradeResults>{
 		match m_t {
 			MarketType::CDA => None,
 			MarketType::FBA => {
@@ -59,7 +83,7 @@ impl Auction {
 	pub fn calc_bid_crossing(bids: Arc<Book>, asks:Arc<Book>, mut new_bid: Order) {
 		if new_bid.price >= asks.get_min_price() {
 			// buying for more than best ask is asking for -> tx @ ask price
-			// Get the best ask from book, if there is one, else nothing to cross so add bid to book
+			// Get the best ask from book if there is one, else nothing to cross so add bid to book
 			let mut best_ask = match asks.pop_from_end() {
 				Some(order) => order,
 				None => {
@@ -203,8 +227,109 @@ impl Auction {
 	/// Calculates the uniform clearing price for the orders in the bids and asks books.
 	/// Orders are sorted by price (descending for bids, ascending for asks).
 	/// Outputs the uniform clearing price if it exists and the total trade volume
-	pub fn frequent_batch_auction(bids: Arc<Book>, asks: Arc<Book>) -> Option<AuctionResults> {
-		unimplemented!();
+	pub fn frequent_batch_auction(bids: Arc<Book>, asks: Arc<Book>) -> Option<TradeResults> {
+		// Check if auction necessary
+		if bids.len() == 0 || asks.len() == 0 {
+			return None
+		}
+		// Calc total ask volume 
+		let ask_book_vol = asks.get_book_volume();
+		// Merge both books and sort in decreasing price order 
+		let merged_book = Book::merge_sort_books(bids, asks);
+
+		// Initialize the min and max prices seen while traversing the merged book
+		let mut max_seen_price = MIN_PRICE;
+		let mut min_seen_price = MAX_PRICE;
+		let mut clearing_price: Option<f64> = None;
+
+		// Initialize vars to track volume seen while traversing the merged book
+		let mut seen_vol = 0.0;
+		let mut prev_seen_vol = 0.0;
+		let mut prev_order_price = 0.0;	// is 0.0 acceptable?
+		let mut cur_order_price = 0.0;
+
+		// Iterate through descending orders. Sum volume of each order and track the min and max seen prices
+		let orders = merged_book.orders.lock().expect("ERROR: Couldn't lock book to sort");
+		println!("Calculating clearing price...");
+		for order in orders.iter() {
+			cur_order_price = order.price;
+			// Process best prices
+			if cur_order_price > max_seen_price {
+				max_seen_price = cur_order_price;
+			}
+			if cur_order_price < min_seen_price {
+				min_seen_price = cur_order_price;
+			}
+
+			// Process seen volumes
+			prev_seen_vol = seen_vol;
+			seen_vol += order.quantity;
+			println!("Checking price:{}, seen_vol:{} / ask_vol:{}", cur_order_price, seen_vol, ask_book_vol);
+			if seen_vol > ask_book_vol {
+				break;
+			}
+			// Track the price of the last traversed order
+			prev_order_price = cur_order_price;
+		}	
+
+		// If we have still not found a max or min seen price, loop until we do:
+		if max_seen_price == MIN_PRICE || min_seen_price == MAX_PRICE {
+			for order in orders.iter() {
+				cur_order_price = order.price;
+				// Process best prices
+				if cur_order_price > max_seen_price {
+					max_seen_price = cur_order_price;
+				}
+				if cur_order_price < min_seen_price {
+					min_seen_price = cur_order_price;
+				}
+				println!("Looping until price < {}, cur_price={}", MAX_PRICE, cur_order_price);
+				if cur_order_price < MAX_PRICE {
+					break;
+				}
+			}
+		}
+
+		// Find the clearing price
+		if max_seen_price == MIN_PRICE && min_seen_price == MAX_PRICE {
+			// We weren't able to find a clearing price
+			clearing_price = None;
+		} 
+		// We perfectly matched volume
+		else if seen_vol == ask_book_vol {	
+			if prev_order_price == MAX_PRICE && MIN_PRICE < cur_order_price && cur_order_price < MAX_PRICE {
+				// The current order crossed, so use this price
+				clearing_price = Some(cur_order_price);
+			} 
+			
+			else if prev_order_price < MAX_PRICE && MIN_PRICE < cur_order_price {
+				let p = round::ceil((prev_order_price + cur_order_price) / 2.0, PRECISION);
+				clearing_price = Some(p);
+			}
+
+			else if MIN_PRICE < prev_order_price && prev_order_price < MAX_PRICE && cur_order_price == MIN_PRICE {
+				clearing_price = Some(prev_order_price);
+			}
+
+			else if prev_order_price == MIN_PRICE {
+				clearing_price = Some(min_seen_price);
+			}
+		}
+		// The last order's volume caused us to cross
+		else if seen_vol > ask_book_vol {
+			clearing_price = Some(Auction::max_float(&cur_order_price, &min_seen_price));
+		}
+		println!("Clearing price: {:?}", clearing_price);
+
+		let result = TradeResults::new(MarketType::FBA, clearing_price, 0.0, 0.0, None);
+		return Some(result);
+
+		// Initialize updates to send to ClearingHouse
+		//let updates = Vec::<PlayerUpdate>::new();
+
+		//let ask_ascending = asks.orders.lock().expect("ERROR: Couldn't lock book to sort").iter_mut();
+
+
 	}
 
 
@@ -244,7 +369,7 @@ impl Auction {
 	/// Calculates the market clearing price from the bids and asks books. Uses a 
 	/// binary search to find the intersection point between the aggregates supply and 
 	/// demand curves. 
-	pub fn bs_cross(bids: Arc<Book>, asks: Arc<Book>) -> Option<AuctionResults> {
+	pub fn bs_cross(bids: Arc<Book>, asks: Arc<Book>) -> Option<TradeResults> {
 		// get_price_bounds obtains locks on the book's prices
 	    let (mut left, mut right) = Auction::get_price_bounds(Arc::clone(&bids), Arc::clone(&asks));
 	    let mut curr_iter = 0;
@@ -265,13 +390,13 @@ impl Auction {
 	    		right = index;
 	    	} else {
 	    		println!("Found cross at: {}", index);
-	    		let result = AuctionResults::new(MarketType::KLF, index, dem, sup);
+	    		let result = TradeResults::new(MarketType::KLF, Some(index), dem, sup, None);
 	    		return Some(result);
 	    	}
 
 	    	if curr_iter == MAX_ITERS {
 	    		println!("Trouble finding cross in max iterations, got: {}", index);
-	    		let result = AuctionResults::new(MarketType::KLF, index, dem, sup);
+	    		let result = TradeResults::new(MarketType::KLF, Some(index), dem, sup, None);
 	    		return Some(result);
 	    	}
 	    }
@@ -291,7 +416,7 @@ impl Auction {
 	    	}
 	    	println!("Starting Auction @{:?}", get_time());
 	    	if let Some(result) = Auction::frequent_batch_auction(Arc::clone(&bids), Arc::clone(&asks)) {
-	    		println!("Found Cross at @{:?} \nP = {}\n", get_time(), result.uniform_price);
+	    		println!("Found Cross at @{:?} \nP = {}\n", get_time(), result.uniform_price.unwrap());
 	    	} else {
 	    		println!("Error, Cross not found\n");
 	    	}

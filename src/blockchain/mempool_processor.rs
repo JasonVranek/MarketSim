@@ -29,9 +29,9 @@ impl MemPoolProcessor {
 		for order in pool.pop_all() {
 			let m_t = MarketType::CDA;		// CHANGE LATERRRRRRRRRRR
 			let handle = match order.order_type {
-				OrderType::Enter => MemPoolProcessor::process_enter(Arc::clone(&bids), Arc::clone(&asks), order, m_t),
-				OrderType::Update => MemPoolProcessor::process_update(Arc::clone(&bids), Arc::clone(&asks), order, m_t),
-				OrderType::Cancel => MemPoolProcessor::process_cancel(Arc::clone(&bids), Arc::clone(&asks), order, m_t),
+				OrderType::Enter => MemPoolProcessor::conc_process_enter(Arc::clone(&bids), Arc::clone(&asks), order, m_t),
+				OrderType::Update => MemPoolProcessor::conc_process_update(Arc::clone(&bids), Arc::clone(&asks), order, m_t),
+				OrderType::Cancel => MemPoolProcessor::conc_process_cancel(Arc::clone(&bids), Arc::clone(&asks), order, m_t),
 			};
 			handles.push(handle);
 		}
@@ -42,26 +42,126 @@ impl MemPoolProcessor {
 	// either of OrderType::{Enter, Update, Cancel}. Each order will
 	// modify the state of either the Bids or Asks Book, but must
 	// first acquire a lock on the respective book. 
-	pub fn seq_process_orders(frame: &mut Vec<Order>, 
-									bids: Arc<Book>, 
-									asks: Arc<Book>,
-									m_t: MarketType) 
-									-> Vec<JoinHandle<()>> {
-		let mut handles = Vec::<JoinHandle<()>>::new();
+	pub fn seq_process_orders(frame: &mut Vec<Order>, bids: Arc<Book>, 
+									asks: Arc<Book>, m_t: MarketType) {
 		for order in frame.drain(..) {
-			let handle = match order.order_type {
-				OrderType::Enter => MemPoolProcessor::process_enter(Arc::clone(&bids), Arc::clone(&asks), order, m_t.clone()),
-				OrderType::Update => MemPoolProcessor::process_update(Arc::clone(&bids), Arc::clone(&asks), order, m_t.clone()),
-				OrderType::Cancel => MemPoolProcessor::process_cancel(Arc::clone(&bids), Arc::clone(&asks), order, m_t.clone()),
+			println!("Processing order:{:?}", order);
+			match order.order_type {
+				OrderType::Enter => MemPoolProcessor::seq_process_enter(Arc::clone(&bids), Arc::clone(&asks), order, m_t.clone()),
+				OrderType::Update => MemPoolProcessor::seq_process_update(Arc::clone(&bids), Arc::clone(&asks), order, m_t.clone()),
+				OrderType::Cancel => MemPoolProcessor::seq_process_cancel(Arc::clone(&bids), Arc::clone(&asks), order, m_t.clone()),
 			};
-			handles.push(handle);
 		}
-		handles
 	}
 
 
 	// Checks if the new order crosses. Modifies orders in book then calculates new max price
-	fn process_enter(bids: Arc<Book>, asks: Arc<Book>, order: Order, m_t: MarketType) -> JoinHandle<()> {
+	fn seq_process_enter(bids: Arc<Book>, asks: Arc<Book>, order: Order, m_t: MarketType) {
+		// Spawn a new thread to process the order
+    	match m_t {
+    		MarketType::FBA|MarketType::KLF => {
+				// KLF and FBA are processed the same way by the order book
+				match order.trade_type {
+					TradeType::Ask => {
+						asks.add_order(order).expect("Failed to add order");
+					},
+					TradeType::Bid => {
+						bids.add_order(order).expect("Failed to add order...");
+					}
+				}
+			},
+			MarketType::CDA => {
+				// Since CDA we will check if the order transacts here:
+				match order.trade_type {
+					TradeType::Ask => {
+						// Only check for cross if this ask price is lower than best ask
+						if order.price < asks.get_min_price() {
+							// This will add the new ask to the book if it doesn't fully transact
+							Auction::calc_ask_crossing(bids, asks, order);
+						} else {
+							// We need to add the ask to the book, best price will be updated in add_order
+							asks.add_order(order).expect("Failed to add order");
+						}
+					},
+					TradeType::Bid => {
+						// Only check for cross if this bid price is higher than best bid
+						if order.price > bids.get_max_price() {
+							// This will add the new bid to the book if it doesn't fully transact
+							Auction::calc_bid_crossing(bids, asks, order);
+						} else {
+							// We need to add the ask to the book, best price will be updated in add_order
+							bids.add_order(order).expect("Failed to add order...");
+						}
+					}
+				}
+			}
+    	}
+		
+	}
+
+	// Cancels the previous order and then enters this as a new one
+	// Updates an order in the Bids or Asks Book in it's own thread
+	fn seq_process_update(bids: Arc<Book>, asks: Arc<Book>, order: Order, m_t: MarketType) {
+		// update books min/max price if this overwrites current min/max OR this order contains new min/max
+		match order.trade_type {
+			TradeType::Ask => {
+				// Cancel the orginal order:
+				println!("Cancelling!");
+				match asks.cancel_order_by_id(&order.trader_id) {
+					Ok(()) => {},
+					Err(e) => println!("{:?}", e),
+				}
+				// Only check for cross if this ask price is lower than best ask
+				if order.price < asks.get_min_price() {
+					println!("Gonna auction!");
+					// This will add the new ask to the book if it doesn't fully transact
+					Auction::calc_ask_crossing(bids, asks, order);
+				} else {
+					println!("Adding to ask book");
+					// We need to add the ask to the book, best price will be updated in add_order
+					asks.add_order(order).expect("Failed to add order");
+				}
+			},
+			TradeType::Bid => {
+				// Cancel the orginal order:
+				println!("Cancelling!");
+				match bids.cancel_order_by_id(&order.trader_id) {
+					Ok(()) => {},
+					Err(e) => println!("{:?}", e),
+				}
+				// Only check for cross if this bid price is higher than best bid
+				if order.price > bids.get_max_price() {
+					println!("Gonna auction!");
+					// This will add the new bid to the book if it doesn't fully transact
+					Auction::calc_bid_crossing(bids, asks, order);
+				} else {
+					println!("Adding to ask book");
+					// We need to add the ask to the book, best price will be updated in add_order
+					bids.add_order(order).expect("Failed to add order...");
+				}
+			}
+		}
+	}
+
+	// Cancels the order living in the Bids or Asks Book
+	fn seq_process_cancel(bids: Arc<Book>, asks: Arc<Book>, order: Order, m_t: MarketType) {
+		let book = match order.trade_type {
+			TradeType::Ask => asks,
+			TradeType::Bid => bids,
+		};
+
+		// If the cancel fails bubble error up.
+		match book.cancel_order(order) {
+    		Ok(()) => {},
+    		Err(e) => {
+    			println!("ERROR: {}", e);
+    			// TODO send an error response over TCP
+    		}
+    	}
+	}
+
+	// Checks if the new order crosses. Modifies orders in book then calculates new max price
+	fn conc_process_enter(bids: Arc<Book>, asks: Arc<Book>, order: Order, m_t: MarketType) -> JoinHandle<()> {
 		// Spawn a new thread to process the order
 	    thread::spawn(move || {
 	    	match m_t {
@@ -108,7 +208,7 @@ impl MemPoolProcessor {
 
 	// Cancels the previous order and then enters this as a new one
 	// Updates an order in the Bids or Asks Book in it's own thread
-	fn process_update(bids: Arc<Book>, asks: Arc<Book>, order: Order, m_t: MarketType) -> JoinHandle<()> {
+	fn conc_process_update(bids: Arc<Book>, asks: Arc<Book>, order: Order, m_t: MarketType) -> JoinHandle<()> {
 		// update books min/max price if this overwrites current min/max OR this order contains new min/max
 	    thread::spawn(move || {
 			match order.trade_type {
@@ -153,7 +253,7 @@ impl MemPoolProcessor {
 	}
 
 	// Cancels the order living in the Bids or Asks Book
-	fn process_cancel(bids: Arc<Book>, asks: Arc<Book>, order: Order, m_t: MarketType) -> JoinHandle<()> {
+	fn conc_process_cancel(bids: Arc<Book>, asks: Arc<Book>, order: Order, m_t: MarketType) -> JoinHandle<()> {
 	    thread::spawn(move || {
 			let book = match order.trade_type {
 				TradeType::Ask => asks,

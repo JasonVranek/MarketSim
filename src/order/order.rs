@@ -63,6 +63,7 @@ impl Clone for ExchangeType {
 /// price: f64 -> trader's willing ness to buy or sell (LimitOrder)
 /// quantity: f64 -> amount of shares to buy/sell
 /// gas: f64 -> the gas/tx fee to post an order
+#[derive(Debug)]
 pub struct Order {
 	pub trader_id: String,
 	pub order_id: u64,		
@@ -74,6 +75,23 @@ pub struct Order {
 	pub price: f64,
 	pub quantity: f64,			
 	pub gas: f64,
+}
+
+impl Clone for Order {
+	fn clone(&self) -> Order {
+		Order {
+			trader_id: self.trader_id.clone(),
+			order_id: self.order_id.clone(),
+			order_type: self.order_type.clone(),
+			trade_type: self.trade_type.clone(),
+			ex_type: self.ex_type.clone(),
+			p_low: self.p_low.clone(),
+			p_high: self.p_high.clone(),
+			price: self.price.clone(),
+			quantity: self.quantity.clone(),
+			gas: self.gas.clone(),
+		}
+	}
 }
 
 impl Order {

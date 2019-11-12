@@ -110,10 +110,10 @@ fn test_cda_ask_transaction() {
 	
 	let mut better_price_ask = common::setup_ask_limit_order();
 	better_price_ask.gas = 10.0;	// worse gas
-	better_price_ask.price = 0.0;	//market order
+	better_price_ask.price = 0.0;	// market order
 
 	let mut better_gas_ask = common::setup_ask_limit_order();
-	better_gas_ask.gas = 99.0;	// better gas
+	better_gas_ask.gas = 99.0;		// better gas
 	better_gas_ask.price = 99.0;	// worse price
 
 
@@ -130,6 +130,15 @@ fn test_cda_ask_transaction() {
 
 	// Create frame from the orders in mempool
 	miner.make_frame(Arc::clone(&pool), BLOCK_SIZE);
+
+	// Assert that orders in frame are sorted in decreasing order by gas
+	let mut last_gas = 999999999.0;
+	for order in &miner.frame {
+		println!("price: {}, gas: {}, type: {:?}", order.price, order.gas, order.trade_type);
+		assert_le!(order.gas, last_gas);
+		last_gas = order.gas;
+	}
+
 	miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type);
 
 	// Only one ask should cross and fill, other will remain
@@ -137,8 +146,8 @@ fn test_cda_ask_transaction() {
 	assert_eq!(bids_book.len(), 0);
 
 	let ask = asks_book.pop_from_end().unwrap();
-	assert_eq!(ask.price, 0.0);
 	assert_eq!(ask.gas, 10.0);
+	assert_eq!(ask.price, 0.0);
 }
 
 
@@ -180,6 +189,14 @@ fn test_cda_bid_transaction() {
 
 	// Create frame from bid order in mempool
 	miner.make_frame(Arc::clone(&pool), BLOCK_SIZE);
+
+	// Assert that orders in frame are sorted in decreasing order by gas
+	let mut last_gas = 999999999.0;
+	for order in &miner.frame {
+		println!("price: {}, gas: {}, type: {:?}", order.price, order.gas, order.trade_type);
+		assert_le!(order.gas, last_gas);
+		last_gas = order.gas;
+	}
 
 	// Process the bid order
 	miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type);
@@ -229,10 +246,155 @@ pub fn test_klf_crossing_price() {
 	assert_eq!(bids_book.len(), 100);
 	assert_eq!(asks_book.len(), 100);
 
-	assert!(Auction::equal_e(&results.uniform_price, &81.09048166081236));
+	assert!(Auction::equal_e(&results.uniform_price.unwrap(), &81.09048166081236));
 }
 
 
+#[test]
+pub fn test_fba_uniform_price1() {
+    let pool = Arc::new(common::setup_mem_pool());
+	let bids_book = Arc::new(common::setup_bids_book());
+	let asks_book = Arc::new(common::setup_asks_book());
+	
+	// Setup bids and asks
+	let mut ask1 = common::setup_ask_limit_order();
+	ask1.quantity = 50.0;
+	ask1.price = 11.30;
+
+	let mut ask2 = common::setup_ask_limit_order();
+	ask2.quantity = 50.0;
+	ask2.price = 12.50;
+
+	let mut bid1 = common::setup_bid_limit_order();
+	bid1.quantity = 44.0;
+	bid1.price = 12.0;
+
+	let mut bid2 = common::setup_bid_limit_order();
+	bid2.quantity = 23.0;
+	bid2.price = 11.20;
+
+	// Setup Miner
+	let mut handles = Vec::new();
+	let mut miner = common::setup_miner();
+	let market_type = MarketType::FBA;
+
+	// Send all the orders in parallel 
+	handles.push(OrderProcessor::conc_recv_order(bid1, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(bid2, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(ask1, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(ask2, Arc::clone(&pool)));
+
+	// Wait for the threads to finish
+	for h in handles {
+		h.join().unwrap();
+	}
+
+	// Create frame from bid order in mempool
+	miner.make_frame(Arc::clone(&pool), BLOCK_SIZE);
+
+	// Process the orders order
+	let results = miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type).unwrap();
+
+	assert_eq!(bids_book.len(), 2);
+	assert_eq!(asks_book.len(), 2);
+
+	assert!(Auction::equal_e(&results.uniform_price.unwrap(), &11.30));
+}
+
+
+#[test]
+pub fn test_fba_uniform_price2() {
+    let pool = Arc::new(common::setup_mem_pool());
+	let bids_book = Arc::new(common::setup_bids_book());
+	let asks_book = Arc::new(common::setup_asks_book());
+	
+	// Setup bids and asks
+	let mut ask1 = common::setup_ask_limit_order();
+	ask1.quantity = 6.0;
+	ask1.price = 11.30;
+
+	let mut ask2 = common::setup_ask_limit_order();
+	ask2.quantity = 50.0;
+	ask2.price = 12.50;
+
+	let mut bid1 = common::setup_bid_limit_order();
+	bid1.quantity = 10.0;
+	bid1.price = 15.0;
+
+	let mut bid2 = common::setup_bid_limit_order();
+	bid2.quantity = 23.0;
+	bid2.price = 11.20;
+
+	// Setup Miner
+	let mut handles = Vec::new();
+	let mut miner = common::setup_miner();
+	let market_type = MarketType::FBA;
+
+	// Send all the orders in parallel 
+	handles.push(OrderProcessor::conc_recv_order(bid1, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(bid2, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(ask1, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(ask2, Arc::clone(&pool)));
+
+	// Wait for the threads to finish
+	for h in handles {
+		h.join().unwrap();
+	}
+
+	// Create frame from bid order in mempool
+	miner.make_frame(Arc::clone(&pool), BLOCK_SIZE);
+
+	// Process the orders order
+	let results = miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type).unwrap();
+
+	assert_eq!(bids_book.len(), 2);
+	assert_eq!(asks_book.len(), 2);
+
+	assert!(Auction::equal_e(&results.uniform_price.unwrap(), &12.50));
+}
+
+
+#[test]
+pub fn test_fba_no_price() {
+    let pool = Arc::new(common::setup_mem_pool());
+	let bids_book = Arc::new(common::setup_bids_book());
+	let asks_book = Arc::new(common::setup_asks_book());
+	
+	// Setup bids and asks
+	let mut ask1 = common::setup_ask_limit_order();
+	ask1.quantity = 6.0;
+	ask1.price = 11.30;
+
+	let mut ask2 = common::setup_ask_limit_order();
+	ask2.quantity = 50.0;
+	ask2.price = 12.50;
+
+	// Setup Miner
+	let mut handles = Vec::new();
+	let mut miner = common::setup_miner();
+	let market_type = MarketType::FBA;
+
+	// Send all the orders in parallel 
+	handles.push(OrderProcessor::conc_recv_order(ask1, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(ask2, Arc::clone(&pool)));
+
+	// Wait for the threads to finish
+	for h in handles {
+		h.join().unwrap();
+	}
+
+	// Create frame from bid order in mempool
+	miner.make_frame(Arc::clone(&pool), BLOCK_SIZE);
+
+	// Process the orders order
+	let results = miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type).unwrap();
+
+	assert_eq!(bids_book.len(), 2);
+	assert_eq!(asks_book.len(), 0);
+
+	println!("{:?}", results);
+	assert!(&results.uniform_price.is_none());
+}
 
 
 

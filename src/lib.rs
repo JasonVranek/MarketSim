@@ -24,6 +24,7 @@ extern crate log4rs;
 
 use std::sync::{Mutex, Arc};
 
+// use crate::libmath;
 
 pub fn setup_exchange() -> (Arc<MemPool>, Arc<Book>, Arc<Book>, Arc<Mutex<State>>) {
 	let queue = Arc::new(MemPool::new());
