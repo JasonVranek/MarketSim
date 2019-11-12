@@ -355,7 +355,7 @@ pub fn test_fba_uniform_price2() {
 
 
 #[test]
-pub fn test_fba_no_price() {
+pub fn test_fba_no_cross() {
     let pool = Arc::new(common::setup_mem_pool());
 	let bids_book = Arc::new(common::setup_bids_book());
 	let asks_book = Arc::new(common::setup_asks_book());
@@ -387,20 +387,117 @@ pub fn test_fba_no_price() {
 	miner.make_frame(Arc::clone(&pool), BLOCK_SIZE);
 
 	// Process the orders order
-	let results = miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type).unwrap();
+	let results = miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type).expect("errorrrr");
 
-	assert_eq!(bids_book.len(), 2);
-	assert_eq!(asks_book.len(), 0);
+	assert_eq!(bids_book.len(), 0);
+	assert_eq!(asks_book.len(), 2);
 
 	println!("{:?}", results);
 	assert!(&results.uniform_price.is_none());
 }
 
 
+#[test]
+pub fn test_fba_vertical_cross() {
+    let pool = Arc::new(common::setup_mem_pool());
+	let bids_book = Arc::new(common::setup_bids_book());
+	let asks_book = Arc::new(common::setup_asks_book());
+	
+	// Setup bids and asks
+	let mut ask1 = common::setup_ask_limit_order();
+	ask1.quantity = 50.0;
+	ask1.price = 11.30;
+
+	let mut ask2 = common::setup_ask_limit_order();
+	ask2.quantity = 50.0;
+	ask2.price = 12.50;
+
+	let mut bid1 = common::setup_bid_limit_order();
+	bid1.quantity = 44.0;
+	bid1.price = 11.30;
+
+	let mut bid2 = common::setup_bid_limit_order();
+	bid2.quantity = 23.0;
+	bid2.price = 11.20;
+
+	// Setup Miner
+	let mut handles = Vec::new();
+	let mut miner = common::setup_miner();
+	let market_type = MarketType::FBA;
+
+	// Send all the orders in parallel 
+	handles.push(OrderProcessor::conc_recv_order(bid1, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(bid2, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(ask1, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(ask2, Arc::clone(&pool)));
+
+	// Wait for the threads to finish
+	for h in handles {
+		h.join().unwrap();
+	}
+
+	// Create frame from bid order in mempool
+	miner.make_frame(Arc::clone(&pool), BLOCK_SIZE);
+
+	// Process the orders order
+	let results = miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type).expect("errorrrr");
+
+	assert_eq!(bids_book.len(), 2);
+	assert_eq!(asks_book.len(), 2);
+
+	println!("{:?}", results);
+	assert!(Auction::equal_e(&results.uniform_price.unwrap(), &11.30));
+}
 
 
+#[test]
+pub fn test_fba_horizontal_cross() {
+    let pool = Arc::new(common::setup_mem_pool());
+	let bids_book = Arc::new(common::setup_bids_book());
+	let asks_book = Arc::new(common::setup_asks_book());
+	
+	// Setup bids and asks
+	let mut ask1 = common::setup_ask_limit_order();
+	ask1.quantity = 50.0;
+	ask1.price = 11.30;
 
+	let mut ask2 = common::setup_ask_limit_order();
+	ask2.quantity = 50.0;
+	ask2.price = 12.50;
 
+	let mut bid1 = common::setup_bid_limit_order();
+	bid1.quantity = 50.0;
+	bid1.price = 12.0;
 
+	let mut bid2 = common::setup_bid_limit_order();
+	bid2.quantity = 23.0;
+	bid2.price = 11.20;
 
+	// Setup Miner
+	let mut handles = Vec::new();
+	let mut miner = common::setup_miner();
+	let market_type = MarketType::FBA;
 
+	// Send all the orders in parallel 
+	handles.push(OrderProcessor::conc_recv_order(bid1, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(bid2, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(ask1, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(ask2, Arc::clone(&pool)));
+
+	// Wait for the threads to finish
+	for h in handles {
+		h.join().unwrap();
+	}
+
+	// Create frame from bid order in mempool
+	miner.make_frame(Arc::clone(&pool), BLOCK_SIZE);
+
+	// Process the orders order
+	let results = miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type).expect("errorrrr");
+
+	assert_eq!(bids_book.len(), 2);
+	assert_eq!(asks_book.len(), 2);
+
+	println!("{:?}", results);
+	assert!(Auction::equal_e(&results.uniform_price.unwrap(), &11.30));
+}

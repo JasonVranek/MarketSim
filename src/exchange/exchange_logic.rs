@@ -230,7 +230,8 @@ impl Auction {
 	pub fn frequent_batch_auction(bids: Arc<Book>, asks: Arc<Book>) -> Option<TradeResults> {
 		// Check if auction necessary
 		if bids.len() == 0 || asks.len() == 0 {
-			return None
+			let result = TradeResults::new(MarketType::FBA, None, 0.0, 0.0, None);
+			return Some(result);
 		}
 		// Calc total ask volume 
 		let ask_book_vol = asks.get_book_volume();
@@ -319,6 +320,7 @@ impl Auction {
 		else if seen_vol > ask_book_vol {
 			clearing_price = Some(Auction::max_float(&cur_order_price, &min_seen_price));
 		}
+
 		println!("Clearing price: {:?}", clearing_price);
 
 		let result = TradeResults::new(MarketType::FBA, clearing_price, 0.0, 0.0, None);
