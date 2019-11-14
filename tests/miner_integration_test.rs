@@ -260,6 +260,7 @@ pub fn test_fba_uniform_price1() {
 	let mut ask1 = common::setup_ask_limit_order();
 	ask1.quantity = 50.0;
 	ask1.price = 11.30;
+	let ask1_id = ask1.order_id;
 
 	let mut ask2 = common::setup_ask_limit_order();
 	ask2.quantity = 50.0;
@@ -268,6 +269,7 @@ pub fn test_fba_uniform_price1() {
 	let mut bid1 = common::setup_bid_limit_order();
 	bid1.quantity = 44.0;
 	bid1.price = 12.0;
+	let bid1_id = bid1.order_id;
 
 	let mut bid2 = common::setup_bid_limit_order();
 	bid2.quantity = 23.0;
@@ -299,6 +301,16 @@ pub fn test_fba_uniform_price1() {
 	assert_eq!(asks_book.len(), 2);
 
 	assert!(Auction::equal_e(&results.uniform_price.unwrap(), &11.30));
+
+	if let Some(player_updates) = results.cross_results {
+		for pu in player_updates {
+			assert_eq!(pu.payer_order_id, bid1_id);
+			assert_eq!(pu.vol_filler_order_id, ask1_id);
+			assert_eq!(pu.volume, 44.0);
+			assert_eq!(pu.price, 11.30);
+		}
+	}
+
 }
 
 
@@ -316,10 +328,12 @@ pub fn test_fba_uniform_price2() {
 	let mut ask2 = common::setup_ask_limit_order();
 	ask2.quantity = 50.0;
 	ask2.price = 12.50;
+	let ask2_id = ask2.order_id;
 
 	let mut bid1 = common::setup_bid_limit_order();
 	bid1.quantity = 10.0;
 	bid1.price = 15.0;
+	let bid1_id = bid1.order_id;
 
 	let mut bid2 = common::setup_bid_limit_order();
 	bid2.quantity = 23.0;
@@ -351,6 +365,15 @@ pub fn test_fba_uniform_price2() {
 	assert_eq!(asks_book.len(), 2);
 
 	assert!(Auction::equal_e(&results.uniform_price.unwrap(), &12.50));
+
+	if let Some(player_updates) = results.cross_results {
+		for pu in player_updates {
+			assert_eq!(pu.payer_order_id, bid1_id);
+			assert_eq!(pu.vol_filler_order_id, ask2_id);
+			assert_eq!(pu.volume, 10.0);
+			assert_eq!(pu.price, 12.50);
+		}
+	}
 }
 
 

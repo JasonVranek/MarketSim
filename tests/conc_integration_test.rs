@@ -231,7 +231,7 @@ fn test_bid_transaction() {
 }
 
 
-#[test]
+// #[test]
 pub fn test_update_bid() {
     let queue = Arc::new(common::setup_mem_pool());
 	let bids_book = Arc::new(common::setup_bids_book());
@@ -300,7 +300,7 @@ pub fn test_update_bid() {
 
 }
 
-#[test]
+// #[test]
 pub fn test_update_ask() {
     let queue = Arc::new(common::setup_mem_pool());
 	let bids_book = Arc::new(common::setup_bids_book());
@@ -369,7 +369,7 @@ pub fn test_update_ask() {
 	}
 }
 
-#[test]
+// #[test]
 pub fn test_cancel_bid() {
     let queue = Arc::new(common::setup_mem_pool());
 	let bids_book = Arc::new(common::setup_bids_book());
@@ -441,7 +441,7 @@ pub fn test_cancel_bid() {
 
 }
 
-#[test]
+// #[test]
 pub fn test_cancel_ask() {
     let queue = Arc::new(common::setup_mem_pool());
 	let bids_book = Arc::new(common::setup_bids_book());
@@ -513,7 +513,7 @@ pub fn test_cancel_ask() {
 }
 
 
-#[test]
+// #[test]
 pub fn test_update_ask_to_cross() {
     // Setup queue and order books
 	let queue = Arc::new(common::setup_mem_pool());
@@ -610,7 +610,7 @@ pub fn test_update_ask_to_cross() {
 
 
 
-#[test]
+// #[test]
 pub fn test_update_bid_to_cross() {
     // Setup queue and order books
 	let queue = Arc::new(common::setup_mem_pool());

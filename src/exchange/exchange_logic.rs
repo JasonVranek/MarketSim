@@ -19,17 +19,22 @@ const PRECISION: i8 = 3;
 
 #[derive(Debug)]
 pub struct PlayerUpdate {
-	pub id_payer: String,
-	pub id_vol_filler: String,
+	pub payer_id: String,
+	pub vol_filler_id: String,
+	pub payer_order_id: u64,
+	pub vol_filler_order_id: u64,
 	pub price: f64,
 	pub volume: f64,
 }
 
 impl PlayerUpdate {
-	pub fn new(id_payer: String, id_vol_filler: String, price: f64, volume: f64) -> PlayerUpdate {
+	pub fn new(payer_id: String, vol_filler_id: String, payer_order_id: u64, 
+		vol_filler_order_id: u64, price: f64, volume: f64) -> PlayerUpdate {
 		PlayerUpdate {
-			id_payer,
-			id_vol_filler,
+			payer_id,
+			vol_filler_id,
+			payer_order_id,
+			vol_filler_order_id,
 			price,
 			volume,
 		}
@@ -236,7 +241,7 @@ impl Auction {
 		// Calc total ask volume 
 		let ask_book_vol = asks.get_book_volume();
 		// Merge both books and sort in decreasing price order 
-		let merged_book = Book::merge_sort_books(bids, asks);
+		let merged_book = Book::merge_sort_books(Arc::clone(&bids), Arc::clone(&asks));
 
 		// Initialize the min and max prices seen while traversing the merged book
 		let mut max_seen_price = MIN_PRICE;
@@ -323,15 +328,124 @@ impl Auction {
 
 		println!("Clearing price: {:?}", clearing_price);
 
-		let result = TradeResults::new(MarketType::FBA, clearing_price, 0.0, 0.0, None);
-		return Some(result);
+		
 
 		// Initialize updates to send to ClearingHouse
-		//let updates = Vec::<PlayerUpdate>::new();
+		let mut updates = Vec::<PlayerUpdate>::new();
 
-		//let ask_ascending = asks.orders.lock().expect("ERROR: Couldn't lock book to sort").iter_mut();
+		let mut result = TradeResults::new(MarketType::FBA, clearing_price, 0.0, 0.0, None);
+
+		
+		// If we have a clearing price, calculate which orders transact and at what volume, otherwise exit returning results
+		match clearing_price {
+			None => return Some(result),
+			Some(cp) => {
+				// Lock bids book
+				let mut bids_descending = bids.orders.lock().expect("ERROR: Couldn't lock book");
+				let mut _vol_filled = 0.0;
+				let mut cancel_bids = Vec::<u64>::new();
+
+				// Pop the best ask from the asks book if it exists
+				let mut cur_ask =  match asks.pop_from_end() {
+					Some(ask) => ask,
+					None => return Some(result),
+				};
+
+				let mut ask_price = cur_ask.price;
+
+				// Iterate over bids in descending order (highest price first)
+				for cur_bid in bids_descending.iter_mut() {
+					let bid_price = cur_bid.price;
+					if bid_price < cp || ask_price > cp {
+						// A bid with price < cp will not tx, same with ask with price > cp
+						// Return the popped ask to the book before exiting
+						asks.push_to_end(cur_ask).expect("Couldn't push order");
+						break;
+					}
+					// The current bid will exchange at clearing price with current ask
+					match cur_bid.quantity.partial_cmp(&cur_ask.quantity).expect("bad cmp") {
+						Ordering::Less => {
+							// cur_bid's interest is less than the cur_ask's volume
+							let trade_amount = cur_bid.quantity;
+							cur_ask.quantity -= trade_amount;
+							cur_bid.quantity = 0.0;
+							_vol_filled += trade_amount;
+							// Information to be sent to clearing house
+							updates.push(PlayerUpdate::new(cur_bid.trader_id.clone(), 
+											  cur_ask.trader_id.clone(), 
+											  cur_bid.order_id, 
+											  cur_ask.order_id, 
+											  cp, trade_amount));
+							// Cancel the bid from the book
+							cancel_bids.push(cur_bid.order_id);
+							// Return the ask 
+						},
+						Ordering::Greater => {
+							// cur_bid's interest is more than the cur_ask's volume
+							let trade_amount = cur_ask.quantity;
+							cur_ask.quantity = 0.0;
+							cur_bid.quantity -= trade_amount;
+							_vol_filled += trade_amount;
+							// Information to be sent to clearing house
+							updates.push(PlayerUpdate::new(cur_bid.trader_id.clone(), 
+											  cur_ask.trader_id.clone(), 
+											  cur_bid.order_id, 
+											  cur_ask.order_id, 
+											  cp, trade_amount));
+
+							// Cancel ask order since was filled (Simply don't add it back to the book...)
+							// Get the next best ask now that this one is filled
+							cur_ask = match asks.pop_from_end() {
+								Some(ask) => ask,
+								None => break,
+							};
+							ask_price = cur_ask.price;
+						},
+						Ordering::Equal => {
+							// cur_bid's interest is equal to the cur_ask's volume
+							let trade_amount = cur_bid.quantity;
+							cur_ask.quantity = 0.0;
+							cur_bid.quantity = 0.0;
+							_vol_filled += trade_amount;
+							// Information to be sent to clearing house
+							updates.push(PlayerUpdate::new(cur_bid.trader_id.clone(), 
+											  cur_ask.trader_id.clone(), 
+											  cur_bid.order_id, 
+											  cur_ask.order_id, 
+											  cp, trade_amount));
+
+							// Cancel bid order from bids books
+							cancel_bids.push(cur_bid.order_id);
+
+							// Iterate to the next ask now that this one is filled (don't add filled ask back to ask book)
+							cur_ask = match asks.pop_from_end() {
+								Some(ask) => ask,
+								None => break,
+							};
+							ask_price = cur_ask.price;
+						}
+
+					}
+				}
+				// Clean the books by removing all orders with quanitity = 0
+				for o_id in cancel_bids {
+					bids.cancel_order_by_id(o_id).expect("Couldn't cancel");
+				}
+
+				result.agg_demand = _vol_filled;
+				result.agg_supply = _vol_filled;
+				// Add all of the PlayerUpdates to our TradeResults
+				result.cross_results = Some(updates);
+				return Some(result)
+			}
+		}
 
 
+
+
+
+		
+		// return Some(result);
 	}
 
 

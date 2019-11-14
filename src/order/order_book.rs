@@ -63,7 +63,7 @@ impl Book {
     	// Acquire the lock
         let mut orders = self.orders.lock().expect("ERROR: Couldn't lock book to update order");
         // Search for existing order's index
-        let order_index = orders.iter().position(|o| o.trader_id == order.trader_id);
+        let order_index = orders.iter().position(|o| o.order_id == order.order_id);
 
         if let Some(i) = order_index {
         	// Add new order to end of the vector
@@ -73,7 +73,7 @@ impl Book {
         	orders.swap(i, last);
         	orders.pop();
         } else {
-        	println!("ERROR: order not found to update: {:?}", &order.trader_id);
+        	println!("ERROR: order not found to update: {:?}", &order.order_id);
         	return Err("ERROR: order not found to update");
         }
 
@@ -85,12 +85,12 @@ impl Book {
     	// Acquire the lock
         let mut orders = self.orders.lock().expect("couldn't acquire lock cancelling order");
         // Search for existing order's index
-        let order_index: Option<usize> = orders.iter().position(|o| &o.trader_id == &order.trader_id);
+        let order_index: Option<usize> = orders.iter().position(|o| &o.order_id == &order.order_id);
 
         if let Some(i) = order_index {
         	orders.remove(i);
         } else {
-        	println!("ERROR: order not found to cancel: {:?}", &order.trader_id);
+        	println!("ERROR: order not found to cancel: {:?}", &order.order_id);
         	return Err("ERROR: order not found to cancel");
         }
 
@@ -101,11 +101,11 @@ impl Book {
         Ok(())
     }
 
-	pub fn cancel_order_by_id(&self, id: &str) -> Result<(), &'static str> {
+	pub fn cancel_order_by_id(&self, id: u64) -> Result<(), &'static str> {
 		// Acquire the lock
         let mut orders = self.orders.lock().expect("couldn't acquire lock cancelling order");
         // Search for existing order's index
-        let order_index: Option<usize> = orders.iter().position(|o| &o.trader_id == &id);
+        let order_index: Option<usize> = orders.iter().position(|o| &o.order_id == &id);
 
 		if let Some(i) = order_index {
         	orders.remove(i);

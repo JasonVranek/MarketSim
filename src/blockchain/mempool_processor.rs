@@ -107,7 +107,7 @@ impl MemPoolProcessor {
 			TradeType::Ask => {
 				// Cancel the orginal order:
 				println!("Cancelling!");
-				match asks.cancel_order_by_id(&order.trader_id) {
+				match asks.cancel_order_by_id(order.order_id) {
 					Ok(()) => {},
 					Err(e) => println!("{:?}", e),
 				}
@@ -125,7 +125,7 @@ impl MemPoolProcessor {
 			TradeType::Bid => {
 				// Cancel the orginal order:
 				println!("Cancelling!");
-				match bids.cancel_order_by_id(&order.trader_id) {
+				match bids.cancel_order_by_id(order.order_id) {
 					Ok(()) => {},
 					Err(e) => println!("{:?}", e),
 				}
@@ -215,7 +215,7 @@ impl MemPoolProcessor {
 				TradeType::Ask => {
 					// Cancel the orginal order:
 					println!("Cancelling!");
-					match asks.cancel_order_by_id(&order.trader_id) {
+					match asks.cancel_order_by_id(order.order_id) {
 						Ok(()) => {},
 						Err(e) => println!("{:?}", e),
 					}
@@ -233,7 +233,7 @@ impl MemPoolProcessor {
 				TradeType::Bid => {
 					// Cancel the orginal order:
 					println!("Cancelling!");
-					match bids.cancel_order_by_id(&order.trader_id) {
+					match bids.cancel_order_by_id(order.order_id) {
 						Ok(()) => {},
 						Err(e) => println!("{:?}", e),
 					}
