@@ -380,6 +380,7 @@ pub fn test_cancel_bid() {
 	bids[0].trader_id = format!("jason");
 	bids[0].price = 99999.9;
 	bids[0].quantity = 1.0;
+	let cancel_id = bids[0].order_id;
 	let mut handles = Vec::new();
 
 	// Send all the orders in parallel 

@@ -15,6 +15,7 @@ pub fn test_order_book_mod() {
 /// orders: Mutex<Vec<Order>> -> Threadsafe vector to keep track of orders
 /// min_price: Mutex<f64> -> Threadsafe minimum market price for computing clearing price
 /// max_price: Mutex<f64> -> Threadsafe maximum market price for computing clearing price
+#[derive(Debug)]
 pub struct Book {
 	pub book_type: TradeType,
 	pub orders: Mutex<Vec<Order>>,

@@ -238,6 +238,13 @@ impl Auction {
 			let result = TradeResults::new(MarketType::FBA, None, 0.0, 0.0, None);
 			return Some(result);
 		}
+
+		// There will be no crossings if best bid < best ask
+		if bids.get_max_price() < asks.get_min_price() {
+			let result = TradeResults::new(MarketType::FBA, None, 0.0, 0.0, None);
+			return Some(result);
+		}
+
 		// Calc total ask volume 
 		let ask_book_vol = asks.get_book_volume();
 		// Merge both books and sort in decreasing price order 
@@ -335,28 +342,30 @@ impl Auction {
 
 		let mut result = TradeResults::new(MarketType::FBA, clearing_price, 0.0, 0.0, None);
 
-		
+		let mut cancel_bids = Vec::<u64>::new();
+		let mut _vol_filled = 0.0;
+
 		// If we have a clearing price, calculate which orders transact and at what volume, otherwise exit returning results
 		match clearing_price {
 			None => return Some(result),
 			Some(cp) => {
-				// Lock bids book
+				// Lock bids book 
 				let mut bids_descending = bids.orders.lock().expect("ERROR: Couldn't lock book");
-				let mut _vol_filled = 0.0;
-				let mut cancel_bids = Vec::<u64>::new();
-
-				// Pop the best ask from the asks book if it exists
-				let mut cur_ask =  match asks.pop_from_end() {
-					Some(ask) => ask,
-					None => return Some(result),
-				};
-
-				let mut ask_price = cur_ask.price;
-
-				// Iterate over bids in descending order (highest price first)
-				for cur_bid in bids_descending.iter_mut() {
+				
+				// Iterate over bids in (last item in bids (first to pop) is best bid, so must iterate in reverse order)
+				for cur_bid in bids_descending.iter_mut().rev() {
 					let bid_price = cur_bid.price;
+
+					// Pop the best ask from the asks book if it exists
+					let mut cur_ask = match asks.pop_from_end() {
+						Some(ask) => ask,
+						None => break,
+					};
+					let ask_price = cur_ask.price;
+
+					// Check whether we will cross at all
 					if bid_price < cp || ask_price > cp {
+						println!("breaking out of loop...cp={}, bp={}, ap={}", cp, bid_price, ask_price);
 						// A bid with price < cp will not tx, same with ask with price > cp
 						// Return the popped ask to the book before exiting
 						asks.push_to_end(cur_ask).expect("Couldn't push order");
@@ -365,6 +374,7 @@ impl Auction {
 					// The current bid will exchange at clearing price with current ask
 					match cur_bid.quantity.partial_cmp(&cur_ask.quantity).expect("bad cmp") {
 						Ordering::Less => {
+							println!("cur bid: {} volume < cur ask volume {}", cur_bid.order_id, cur_ask.order_id);
 							// cur_bid's interest is less than the cur_ask's volume
 							let trade_amount = cur_bid.quantity;
 							cur_ask.quantity -= trade_amount;
@@ -374,13 +384,15 @@ impl Auction {
 							updates.push(PlayerUpdate::new(cur_bid.trader_id.clone(), 
 											  cur_ask.trader_id.clone(), 
 											  cur_bid.order_id, 
-											  cur_ask.order_id, 
+											  cur_ask.order_id.clone(), 
 											  cp, trade_amount));
 							// Cancel the bid from the book
 							cancel_bids.push(cur_bid.order_id);
-							// Return the ask 
+							// Return the ask for next loop iteration
+							asks.push_to_end(cur_ask).expect("Couldn't push order");
 						},
 						Ordering::Greater => {
+							println!("cur bid: {} volume > cur ask volume {}", cur_bid.order_id, cur_ask.order_id);
 							// cur_bid's interest is more than the cur_ask's volume
 							let trade_amount = cur_ask.quantity;
 							cur_ask.quantity = 0.0;
@@ -394,14 +406,9 @@ impl Auction {
 											  cp, trade_amount));
 
 							// Cancel ask order since was filled (Simply don't add it back to the book...)
-							// Get the next best ask now that this one is filled
-							cur_ask = match asks.pop_from_end() {
-								Some(ask) => ask,
-								None => break,
-							};
-							ask_price = cur_ask.price;
 						},
 						Ordering::Equal => {
+							println!("cur bid: {} volume = cur ask volume {}", cur_bid.order_id, cur_ask.order_id);
 							// cur_bid's interest is equal to the cur_ask's volume
 							let trade_amount = cur_bid.quantity;
 							cur_ask.quantity = 0.0;
@@ -417,35 +424,52 @@ impl Auction {
 							// Cancel bid order from bids books
 							cancel_bids.push(cur_bid.order_id);
 
-							// Iterate to the next ask now that this one is filled (don't add filled ask back to ask book)
-							cur_ask = match asks.pop_from_end() {
-								Some(ask) => ask,
-								None => break,
-							};
-							ask_price = cur_ask.price;
+							// Cancel ask order since was filled (Simply don't add it back to the book...)
 						}
-
 					}
 				}
-				// Clean the books by removing all orders with quanitity = 0
-				for o_id in cancel_bids {
-					bids.cancel_order_by_id(o_id).expect("Couldn't cancel");
-				}
-
-				result.agg_demand = _vol_filled;
-				result.agg_supply = _vol_filled;
-				// Add all of the PlayerUpdates to our TradeResults
-				result.cross_results = Some(updates);
-				return Some(result)
 			}
 		}
+		// Execute bid cleaning outside of scope where bids were borrwed so no deadlock.
+		// Clean the books by removing all orders with quanitity = 0
+		for o_id in cancel_bids {
+			println!("Cancelling order with oid: {}", o_id);
+			bids.cancel_order_by_id(o_id).expect("Couldn't cancel");
+		}
+
+		result.agg_demand = _vol_filled;
+		result.agg_supply = _vol_filled;
+		// Add all of the PlayerUpdates to our TradeResults
+		result.cross_results = Some(updates);
+		return Some(result)
+	}
+
+	/// FBA clearing price using binary search...
+	pub fn frequent_batch_auction2(bids: Arc<Book>, asks: Arc<Book>) -> Option<TradeResults> {
+		unimplemented!();
+
+		// Check if auction necessary
+		if bids.len() == 0 || asks.len() == 0 {
+			let result = TradeResults::new(MarketType::FBA, None, 0.0, 0.0, None);
+			return Some(result);
+		}
+
+		// There will be no crossings if best bid < best ask
+		if bids.get_max_price() < asks.get_min_price() {
+			let result = TradeResults::new(MarketType::FBA, None, 0.0, 0.0, None);
+			return Some(result);
+		}
+
+		// Start from the bids in descending order and calculate total seen volume as you move left
+
+		// Start from the asks in ascending order and calculate total seen volume as you move right
+
+		// If bid price >= ask price, we have crossed. uniform price = 
+
+		// Volume to trade is the min(seen_bid_vol, seen_ask_vol)
 
 
-
-
-
-		
-		// return Some(result);
+		return None;
 	}
 
 
