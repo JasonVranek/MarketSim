@@ -586,8 +586,96 @@ pub fn test_fba_vertical_cross() {
 	}
 }
 
-
 #[test]
+pub fn test_fba_vertical_cross2() {
+    let pool = Arc::new(common::setup_mem_pool());
+	let bids_book = Arc::new(common::setup_bids_book());
+	let asks_book = Arc::new(common::setup_asks_book());
+	
+	// Setup bids and asks
+	let mut ask1 = common::setup_ask_limit_order();
+	ask1.quantity = 10.0;
+	ask1.price = 11.20;
+	let ask1_id = ask1.order_id;
+
+	let mut ask2 = common::setup_ask_limit_order();
+	ask2.quantity = 50.0;
+	ask2.price = 11.60;
+	let ask2_id = ask2.order_id;
+
+	let mut ask3 = common::setup_ask_limit_order();
+	ask3.quantity = 22.0;
+	ask3.price = 12.30;
+	let ask3_id = ask3.order_id;
+
+	let mut ask4 = common::setup_ask_limit_order();
+	ask4.quantity = 30.0;
+	ask4.price = 12.50;	
+
+	let mut bid1 = common::setup_bid_limit_order();
+	bid1.quantity = 61.0;
+	bid1.price = 12.3;
+	let bid1_id = bid1.order_id;
+
+	let mut bid2 = common::setup_bid_limit_order();
+	bid2.quantity = 40.0;
+	bid2.price = 11.0;
+
+	// Setup Miner
+	let mut handles = Vec::new();
+	let mut miner = common::setup_miner();
+	let market_type = MarketType::FBA;
+
+	// Send all the orders in parallel 
+	handles.push(OrderProcessor::conc_recv_order(bid1, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(bid2, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(ask1, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(ask2, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(ask3, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(ask4, Arc::clone(&pool)));
+
+	// Wait for the threads to finish
+	for h in handles {
+		h.join().unwrap();
+	}
+
+	// Create frame from bid order in mempool
+	miner.make_frame(Arc::clone(&pool), BLOCK_SIZE);
+
+	// Process the orders order
+	let results = miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type).unwrap();
+
+	assert_eq!(bids_book.len(), 1);
+	// Both asks that were completely filled will be removed
+	assert_eq!(asks_book.len(), 2);
+
+	println!("{:?}", results);
+	assert!(Auction::equal_e(&results.uniform_price.expect("no price!!"), &12.3));
+
+	assert_eq!(results.agg_supply, 61.0);
+
+	if let Some(player_updates) = results.cross_results {
+		// player_updates[0] -> bid1 + ask1
+		assert_eq!(player_updates[0].payer_order_id, bid1_id);
+		assert_eq!(player_updates[0].vol_filler_order_id, ask1_id);
+		assert_eq!(player_updates[0].volume, 10.0);
+		assert_eq!(player_updates[0].price, 12.3);
+
+		assert_eq!(player_updates[1].payer_order_id, bid1_id);
+		assert_eq!(player_updates[1].vol_filler_order_id, ask2_id);
+		assert_eq!(player_updates[1].volume, 50.0);
+		assert_eq!(player_updates[1].price, 12.3);
+
+		assert_eq!(player_updates[2].payer_order_id, bid1_id);
+		assert_eq!(player_updates[2].vol_filler_order_id, ask3_id);
+		assert_eq!(player_updates[2].volume, 1.0);
+		assert_eq!(player_updates[2].price, 12.3);
+
+	}
+}
+
+
+// #[test]		// Need to confirm what the price is for this...
 pub fn test_fba_horizontal_cross() {
     let pool = Arc::new(common::setup_mem_pool());
 	let bids_book = Arc::new(common::setup_bids_book());
@@ -638,14 +726,95 @@ pub fn test_fba_horizontal_cross() {
 	assert_eq!(asks_book.len(), 1);
 
 	println!("{:?}", results);
-	assert!(Auction::equal_e(&results.uniform_price.unwrap(), &11.30));
+	assert!(Auction::equal_e(&results.uniform_price.unwrap(), &12.25));
 
 	if let Some(player_updates) = results.cross_results {
-		for pu in player_updates {
-			assert_eq!(pu.payer_order_id, bid1_id);
-			assert_eq!(pu.vol_filler_order_id, ask1_id);
-			assert_eq!(pu.volume, 50.0);
-			assert_eq!(pu.price, 11.30);
-		}
+		assert_eq!(player_updates[0].payer_order_id, bid1_id);
+		assert_eq!(player_updates[0].vol_filler_order_id, ask1_id);
+		assert_eq!(player_updates[0].volume, 50.0);
+		assert!(Auction::equal_e(&player_updates[0].price, &12.25));
+	}
+}
+
+
+#[test]
+pub fn test_fba_horizontal_cross2() {
+    let pool = Arc::new(common::setup_mem_pool());
+	let bids_book = Arc::new(common::setup_bids_book());
+	let asks_book = Arc::new(common::setup_asks_book());
+	
+	// Setup bids and asks
+	let mut ask1 = common::setup_ask_limit_order();
+	ask1.quantity = 10.0;
+	ask1.price = 11.20;
+	let ask1_id = ask1.order_id;
+
+	let mut ask2 = common::setup_ask_limit_order();
+	ask2.quantity = 50.0;
+	ask2.price = 11.60;
+	let ask2_id = ask2.order_id;
+
+	let mut ask3 = common::setup_ask_limit_order();
+	ask3.quantity = 22.0;
+	ask3.price = 12.30;
+
+	let mut ask4 = common::setup_ask_limit_order();
+	ask4.quantity = 30.0;
+	ask4.price = 12.50;	
+
+	let mut bid1 = common::setup_bid_limit_order();
+	bid1.quantity = 60.0;
+	bid1.price = 12.4;
+	let bid1_id = bid1.order_id;
+
+	let mut bid2 = common::setup_bid_limit_order();
+	bid2.quantity = 40.0;
+	bid2.price = 11.0;
+
+	// Setup Miner
+	let mut handles = Vec::new();
+	let mut miner = common::setup_miner();
+	let market_type = MarketType::FBA;
+
+	// Send all the orders in parallel 
+	handles.push(OrderProcessor::conc_recv_order(bid1, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(bid2, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(ask1, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(ask2, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(ask3, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(ask4, Arc::clone(&pool)));
+
+	// Wait for the threads to finish
+	for h in handles {
+		h.join().unwrap();
+	}
+
+	// Create frame from bid order in mempool
+	miner.make_frame(Arc::clone(&pool), BLOCK_SIZE);
+
+	// Process the orders order
+	let results = miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type).unwrap();
+
+	assert_eq!(bids_book.len(), 1);
+	// Both asks that were completely filled will be removed
+	assert_eq!(asks_book.len(), 2);
+
+	println!("{:?}", results);
+	assert!(Auction::equal_e(&results.uniform_price.expect("no price!!"), &12.35));
+
+	assert_eq!(results.agg_supply, 60.0);
+
+	if let Some(player_updates) = results.cross_results {
+		// player_updates[0] -> bid1 + ask1
+		assert_eq!(player_updates[0].payer_order_id, bid1_id);
+		assert_eq!(player_updates[0].vol_filler_order_id, ask1_id);
+		assert_eq!(player_updates[0].volume, 10.0);
+		assert!(Auction::equal_e(&player_updates[0].price, &12.35));
+
+		assert_eq!(player_updates[1].payer_order_id, bid1_id);
+		assert_eq!(player_updates[1].vol_filler_order_id, ask2_id);
+		assert_eq!(player_updates[1].volume, 50.0);
+		assert!(Auction::equal_e(&player_updates[1].price, &12.35));
+
 	}
 }

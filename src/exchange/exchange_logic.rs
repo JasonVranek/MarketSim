@@ -15,7 +15,7 @@ const EPSILON: f64 =  0.000_000_001;
 const MAX_PRICE: f64 = 999_999_999.0;
 const MIN_PRICE: f64 = 0.0;
 const MAX_ITERS: usize = 1000;
-const PRECISION: i8 = 3;
+const PRECISION: i8 = 4;
 
 #[derive(Debug)]
 pub struct PlayerUpdate {
@@ -278,7 +278,8 @@ impl Auction {
 			prev_seen_vol = seen_vol;
 			seen_vol += order.quantity;
 			println!("Checking price:{}, seen_vol:{} / ask_vol:{}", cur_order_price, seen_vol, ask_book_vol);
-			if seen_vol > ask_book_vol {
+			if seen_vol >= ask_book_vol {
+				// NOTE: darrell's implementation didn't include <=, just <, but this fixed horizontal cross edge case
 				break;
 			}
 			// Track the price of the last traversed order
@@ -316,7 +317,8 @@ impl Auction {
 			} 
 			
 			else if prev_order_price < MAX_PRICE && MIN_PRICE < cur_order_price {
-				let p = round::ceil((prev_order_price + cur_order_price) / 2.0, PRECISION);
+				// let p = round::ceil((prev_order_price + cur_order_price) / 2.0, PRECISION);
+				let p = (prev_order_price + cur_order_price) / 2.0;		// NOTE changed this from darrell's...confirm with dan
 				clearing_price = Some(p);
 			}
 

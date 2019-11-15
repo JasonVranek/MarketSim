@@ -1,3 +1,4 @@
+use crate::players::Player;
 use crate::order::order::Order;
 use crate::players::TraderT;
 use crate::utility::gen_trader_id;
@@ -19,18 +20,6 @@ pub struct Miner {
 }
 
 impl Miner {
-	pub fn new(bal: f64, inv:f64) -> Miner {
-		Miner {
-			trader_id: gen_trader_id(TraderT::Miner),
-			orders: Mutex::new(Vec::<Order>::new()),
-			frame: Vec::<Order>::new(),
-			balance: bal,
-			inventory: inv,
-
-		}
-	}
-
-
 	/// Miner grabs ≤ block_size orders from the MemPool to construct frame for next block
 	/// sorted by gas price
 	pub fn make_frame(&mut self, pool: Arc<MemPool>, block_size: usize) {
@@ -56,6 +45,43 @@ impl Miner {
 		// Run auction after book has been updated (CDA is prcessed in seq_process_orders)
 		Auction::run_auction(bids, asks, m_t)
 	}
-
-
 }
+
+
+
+impl Player for Miner {
+	fn new(trader_id: String) -> Miner {
+		Miner {
+			// trader_id: gen_trader_id(TraderT::Miner),
+			trader_id: trader_id,
+			orders: Mutex::new(Vec::<Order>::new()),
+			frame: Vec::<Order>::new(),
+			balance: 0.0,
+			inventory: 0.0,
+
+		}
+	}
+
+	fn get_bal(&self) -> f64 {
+		self.balance
+	}
+
+	fn get_inv(&self) -> f64 {
+		self.inventory
+	}
+
+	fn update_bal(&mut self, to_add: f64) {
+		self.balance += to_add;
+	}
+
+	fn update_inv(&mut self, to_add: f64) {
+		self.inventory += to_add;
+	}
+}
+
+
+
+
+
+
+

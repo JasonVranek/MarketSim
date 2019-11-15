@@ -23,7 +23,15 @@ impl Clone for TraderT {
 
 
 
-/// 
-pub struct Player {
+/// A trait common to Investors, Makers, and Miners
+pub trait Player {
+	fn new(trader_id: String) -> Self;
 
+	fn get_bal(&self) -> f64;
+
+	fn get_inv(&self) -> f64;
+
+	fn update_bal(&mut self, to_add: f64);
+
+	fn update_inv(&mut self, to_add: f64);
 }

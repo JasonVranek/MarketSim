@@ -7,6 +7,7 @@ use flow_rs::order::order::*;
 use flow_rs::order::order_book::*;
 use flow_rs::utility::{gen_rand_f64, gen_rand_trader_id};
 use flow_rs::players::miner::Miner;
+use flow_rs::players::Player;
 use std::sync::Arc;
 use rand::Rng;
 
@@ -17,7 +18,7 @@ pub fn setup() {
 }
 
 pub fn setup_miner() -> Miner {
-	Miner::new(999.0, 999.0)
+	Miner::new(format!("{:?}", "asfasdf"))
 }
 
 pub fn setup_bid_limit_order() -> Order {

@@ -158,6 +158,7 @@ impl Book {
 		return merged;
 	}
 
+    // Puts orders with lower prices at the end of array, so iterating is descending, popping is ascending.
 	pub fn sort_desc_price(&self) {
     	// Acquire the lock
         let mut orders = self.orders.lock().expect("ERROR: Couldn't lock book to sort");
