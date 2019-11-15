@@ -350,16 +350,25 @@ impl Auction {
 			None => return Some(result),
 			Some(cp) => {
 				// Lock bids book 
-				let mut bids_descending = bids.orders.lock().expect("ERROR: Couldn't lock book");
+				// let mut bids_descending = bids.orders.lock().expect("ERROR: Couldn't lock book");
 				
 				// Iterate over bids in (last item in bids (first to pop) is best bid, so must iterate in reverse order)
-				for cur_bid in bids_descending.iter_mut().rev() {
+				// for cur_bid in bids_descending.iter_mut().rev() {
+				loop {
+					// Pop the best bid from the bids book if it exists
+					let mut cur_bid = match bids.pop_from_end() {
+						Some(bid) => bid,
+						None => break,
+					};
 					let bid_price = cur_bid.price;
 
 					// Pop the best ask from the asks book if it exists
 					let mut cur_ask = match asks.pop_from_end() {
 						Some(ask) => ask,
-						None => break,
+						None => {
+							bids.push_to_end(cur_bid).expect("Couldn't push order");
+							break;
+						},
 					};
 					let ask_price = cur_ask.price;
 
@@ -368,6 +377,7 @@ impl Auction {
 						println!("breaking out of loop...cp={}, bp={}, ap={}", cp, bid_price, ask_price);
 						// A bid with price < cp will not tx, same with ask with price > cp
 						// Return the popped ask to the book before exiting
+						bids.push_to_end(cur_bid).expect("Couldn't push order");
 						asks.push_to_end(cur_ask).expect("Couldn't push order");
 						break;
 					}
@@ -404,8 +414,9 @@ impl Auction {
 											  cur_bid.order_id, 
 											  cur_ask.order_id, 
 											  cp, trade_amount));
-
 							// Cancel ask order since was filled (Simply don't add it back to the book...)
+							// This bid's interest is not fully filled so return it to be used again:
+							bids.push_to_end(cur_bid).expect("Couldn't push order");
 						},
 						Ordering::Equal => {
 							println!("cur bid: {} volume = cur ask volume {}", cur_bid.order_id, cur_ask.order_id);
@@ -432,10 +443,10 @@ impl Auction {
 		}
 		// Execute bid cleaning outside of scope where bids were borrwed so no deadlock.
 		// Clean the books by removing all orders with quanitity = 0
-		for o_id in cancel_bids {
-			println!("Cancelling order with oid: {}", o_id);
-			bids.cancel_order_by_id(o_id).expect("Couldn't cancel");
-		}
+		// for o_id in cancel_bids {
+		// 	println!("Cancelling order with oid: {}", o_id);
+		// 	bids.cancel_order_by_id(o_id).expect("Couldn't cancel");
+		// }
 
 		result.agg_demand = _vol_filled;
 		result.agg_supply = _vol_filled;
