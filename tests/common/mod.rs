@@ -7,6 +7,8 @@ use flow_rs::order::order::*;
 use flow_rs::order::order_book::*;
 use flow_rs::utility::{gen_rand_f64, gen_rand_trader_id};
 use flow_rs::players::miner::Miner;
+use flow_rs::players::investor::Investor;
+use flow_rs::players::maker::Maker;
 use flow_rs::players::Player;
 use std::sync::Arc;
 use rand::Rng;
@@ -169,7 +171,7 @@ pub fn setup_orders() -> (Vec<Order>, Vec<Order>) {
 	let mut asks = Vec::<Order>::new();
 	for i in 1..101 {
 		bids.push(Order::new(
-			gen_rand_trader_id(), 
+			format!("INV{}", i), 
     		OrderType::Enter, 
     		TradeType::Bid, 
     		ExchangeType::LimitOrder,
@@ -180,7 +182,7 @@ pub fn setup_orders() -> (Vec<Order>, Vec<Order>) {
     		0.5,
 		));
 		asks.push(Order::new(
-			gen_rand_trader_id(), 
+			format!("MKR{}", i), 
     		OrderType::Enter, 
     		TradeType::Ask, 
     		ExchangeType::LimitOrder,
@@ -196,12 +198,28 @@ pub fn setup_orders() -> (Vec<Order>, Vec<Order>) {
 	(bids, asks)
 }
 
+pub fn setup_n_investors(n: usize) -> Vec<Investor>{
+	let mut vec = Vec::<Investor>::new();
+	for i in 0..n {
+		vec.push(Investor::new(format!("INV{}", i)));
+	}
+	vec
+} 
+
+pub fn setup_n_makers(n: usize) -> Vec<Maker> {
+	let mut vec = Vec::<Maker>::new();
+	for i in 0..n {
+		vec.push(Maker::new(format!("MKR{}", i)));
+	}
+	vec
+}
+
 pub fn setup_flow_orders() -> (Vec<Order>, Vec<Order>) {
 	let mut bids = Vec::<Order>::new();
 	let mut asks = Vec::<Order>::new();
 	for i in 0..100 {
 		bids.push(Order::new(
-			gen_rand_trader_id(), 
+			format!("INV{}", i), 
     		OrderType::Enter, 
     		TradeType::Bid, 
     		ExchangeType::FlowOrder,
@@ -212,7 +230,7 @@ pub fn setup_flow_orders() -> (Vec<Order>, Vec<Order>) {
     		0.1, 		// gas
 		));
 		asks.push(Order::new(
-			gen_rand_trader_id(), 
+			format!("MKR{}", i), 
     		OrderType::Enter, 
     		TradeType::Ask, 
     		ExchangeType::FlowOrder,

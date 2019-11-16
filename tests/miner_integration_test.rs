@@ -6,6 +6,7 @@ use flow_rs::order::order::*;
 use flow_rs::exchange::exchange_logic::Auction;
 use flow_rs::players::miner::Miner;
 use flow_rs::exchange::MarketType;
+use flow_rs::exchange::clearing_house::ClearingHouse;
 use std::sync::Arc;
 use rand::{Rng, thread_rng};
 use more_asserts::{assert_le};
@@ -249,6 +250,90 @@ pub fn test_klf_crossing_price() {
 	assert!(Auction::equal_e(&results.uniform_price.unwrap(), &81.09048166081236));
 }
 
+#[test]
+pub fn test_klf_update_chouse() {
+    let pool = Arc::new(common::setup_mem_pool());
+	let bids_book = Arc::new(common::setup_bids_book());
+	let asks_book = Arc::new(common::setup_asks_book());
+	
+	// Setup bids and asks
+	let (bids, asks) = common::setup_flow_orders();
+	let mut handles = Vec::new();
+
+	let mut miner = common::setup_miner();
+	let market_type = MarketType::KLF;
+
+	let mut house = ClearingHouse::new();
+	let mut investors = common::setup_n_investors(100);
+	let mut makers = common::setup_n_makers(100);
+
+	
+	// Calculate what each player's end vol should be before so we can check later
+	let mut bids_vol = Vec::<(String, f64)>::new();
+	for bid in bids.iter() {
+		let vol = bid.calc_flow_demand(81.09048166081236);
+		bids_vol.push((bid.trader_id.clone(), vol));
+	}
+
+	let mut asks_vol = Vec::<(String, f64)>::new();
+	for ask in asks.iter() {
+		let vol = ask.calc_flow_supply(81.09048166081236);
+		asks_vol.push((ask.trader_id.clone(), vol));
+	}
+
+	// Send all the orders in parallel 
+	let mut i = 0;
+	for bid in bids{
+		investors[i].orders.lock().unwrap().push(bid.clone());
+		handles.push(OrderProcessor::conc_recv_order(bid, Arc::clone(&pool)));
+		i += 1;
+	}
+	i = 0;
+	for ask in asks {
+		makers[i].orders.lock().unwrap().push(ask.clone());
+		handles.push(OrderProcessor::conc_recv_order(ask, Arc::clone(&pool)));
+		i += 1;
+	}
+
+	// Wait for the threads to finish
+	for h in handles {
+		h.join().unwrap();
+	}
+
+	// Register the players to the clearing house:
+	while investors.len() > 0 {
+		house.reg_investor(investors.pop().unwrap());
+	}
+
+	while makers.len() > 0 {
+		house.reg_maker(makers.pop().unwrap());
+	}
+
+	// Create frame from bid order in mempool
+	miner.make_frame(Arc::clone(&pool), BLOCK_SIZE);
+
+	// Process the bid order
+	let results = miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type).unwrap();
+
+	assert_eq!(bids_book.len(), 100);
+	assert_eq!(asks_book.len(), 100);
+
+	assert!(Auction::equal_e(&results.uniform_price.unwrap(), &81.09048166081236));
+
+	house.flow_batch_update(results);
+
+	for (bid_id, vol) in bids_vol {
+		let player = house.get_player(bid_id).expect("couldn't get player");
+		assert!(Auction::equal_e(&player.get_inv(), &vol));
+	}
+
+	for (ask_id, vol) in asks_vol {
+		let player = house.get_player(ask_id).expect("couldn't get player");
+		assert!(Auction::equal_e(&player.get_inv(), &-vol));
+	}
+}
+
+
 
 #[test]
 pub fn test_fba_uniform_price1() {
@@ -319,9 +404,6 @@ pub fn test_fba_uniform_price1() {
 	}
 	
 	println!("bids: {:?}, asks: {:?}", bids_book, asks_book);
-
-	
-
 }
 
 
