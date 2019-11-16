@@ -10,15 +10,9 @@ pub struct Maker {
 	pub inventory: f64,
 }
 
-
+/// Logic for Maker trading strategy
 impl Maker {
-
-}
-
-
-
-impl Player for Maker {
-	fn new(trader_id: String) -> Maker {
+	pub fn new(trader_id: String) -> Maker {
 		Maker {
 			trader_id: trader_id,
 			orders: Mutex::new(Vec::<Order>::new()),
@@ -26,6 +20,12 @@ impl Player for Maker {
 			inventory: 0.0,
 		}
 	}
+}
+
+
+
+impl Player for Maker {
+	
 
 	fn get_bal(&self) -> f64 {
 		self.balance
@@ -41,6 +41,15 @@ impl Player for Maker {
 
 	fn update_inv(&mut self, to_add: f64) {
 		self.inventory += to_add;
+	}
+
+	fn add_order(&mut self,	 order: Order) {
+		let mut orders = self.orders.lock().expect("Couldn't lock orders");
+		orders.push(order);
+	} 
+
+	fn num_orders(&self) -> usize {
+		self.orders.lock().unwrap().len()
 	}
 
 }

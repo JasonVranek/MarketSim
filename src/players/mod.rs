@@ -1,3 +1,5 @@
+use crate::order::order::Order;
+
 pub mod investor;
 pub mod maker;
 pub mod miner;
@@ -25,7 +27,7 @@ impl Clone for TraderT {
 
 /// A trait common to Investors, Makers, and Miners
 pub trait Player {
-	fn new(trader_id: String) -> Self;
+	// fn new(trader_id: String) -> Self;
 
 	fn get_bal(&self) -> f64;
 
@@ -34,4 +36,8 @@ pub trait Player {
 	fn update_bal(&mut self, to_add: f64);
 
 	fn update_inv(&mut self, to_add: f64);
+
+	fn add_order(&mut self, order: Order);
+
+	fn num_orders(&self) -> usize;
 }

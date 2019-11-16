@@ -20,6 +20,18 @@ pub struct Miner {
 }
 
 impl Miner {
+	pub fn new(trader_id: String) -> Miner {
+		Miner {
+			// trader_id: gen_trader_id(TraderT::Miner),
+			trader_id: trader_id,
+			orders: Mutex::new(Vec::<Order>::new()),
+			frame: Vec::<Order>::new(),
+			balance: 0.0,
+			inventory: 0.0,
+
+		}
+	}
+
 	/// Miner grabs ≤ block_size orders from the MemPool to construct frame for next block
 	/// sorted by gas price
 	pub fn make_frame(&mut self, pool: Arc<MemPool>, block_size: usize) {
@@ -45,22 +57,17 @@ impl Miner {
 		// Run auction after book has been updated (CDA is prcessed in seq_process_orders)
 		Auction::run_auction(bids, asks, m_t)
 	}
+
+
+	pub fn attempt_frontrun(&self) {
+		unimplemented!();
+	}
 }
 
 
 
 impl Player for Miner {
-	fn new(trader_id: String) -> Miner {
-		Miner {
-			// trader_id: gen_trader_id(TraderT::Miner),
-			trader_id: trader_id,
-			orders: Mutex::new(Vec::<Order>::new()),
-			frame: Vec::<Order>::new(),
-			balance: 0.0,
-			inventory: 0.0,
-
-		}
-	}
+	
 
 	fn get_bal(&self) -> f64 {
 		self.balance
@@ -76,6 +83,15 @@ impl Player for Miner {
 
 	fn update_inv(&mut self, to_add: f64) {
 		self.inventory += to_add;
+	}
+
+	fn add_order(&mut self,	 order: Order) {
+		let mut orders = self.orders.lock().expect("Couldn't lock orders");
+		orders.push(order);
+	} 
+
+	fn num_orders(&self) -> usize {
+		self.orders.lock().unwrap().len()
 	}
 }
 

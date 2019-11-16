@@ -14,13 +14,7 @@ pub struct Investor {
 
 /// The 
 impl Investor {
-	pub fn new_limit_order() -> Order {
-		unimplemented!();
-	}
-}
-
-impl Player for Investor {
-	fn new(trader_id: String) -> Investor {
+	pub fn new(trader_id: String) -> Investor {
 		Investor {
 			trader_id: trader_id,
 			orders: Mutex::new(Vec::<Order>::new()),
@@ -28,6 +22,14 @@ impl Player for Investor {
 			inventory: 0.0,
 		}
 	}
+
+	pub fn new_limit_order() -> Order {
+		unimplemented!();
+	}
+}
+
+impl Player for Investor {
+	
 
 	fn get_bal(&self) -> f64 {
 		self.balance
@@ -43,6 +45,15 @@ impl Player for Investor {
 
 	fn update_inv(&mut self, to_add: f64) {
 		self.inventory += to_add;
+	}
+
+	fn add_order(&mut self,	 order: Order) {
+		let mut orders = self.orders.lock().expect("Couldn't lock orders");
+		orders.push(order);
+	} 
+
+	fn num_orders(&self) -> usize {
+		self.orders.lock().unwrap().len()
 	}
 
 }
