@@ -543,13 +543,19 @@ impl Auction {
 	    		right = index;
 	    	} else {
 	    		println!("Found cross at: {}", index);
-	    		let result = TradeResults::new(MarketType::KLF, Some(index), dem, sup, None);
+	    		let mut result = TradeResults::new(MarketType::KLF, Some(index), dem, sup, None);
+	    		// Push the player updates for updating the player's state in ClearingHouse
+	    		let player_updates = Auction::flow_player_updates(index, Arc::clone(&bids), Arc::clone(&asks));
+	    		result.cross_results = Some(player_updates);
 	    		return Some(result);
 	    	}
 
 	    	if curr_iter == MAX_ITERS {
 	    		println!("Trouble finding cross in max iterations, got: {}", index);
-	    		let result = TradeResults::new(MarketType::KLF, Some(index), dem, sup, None);
+	    		let mut result = TradeResults::new(MarketType::KLF, Some(index), dem, sup, None);
+	    		// Push the player updates for updating the player's state in ClearingHouse
+	    		let player_updates = Auction::flow_player_updates(index, Arc::clone(&bids), Arc::clone(&asks));
+	    		result.cross_results = Some(player_updates);
 	    		return Some(result);
 	    	}
 	    }
@@ -580,6 +586,37 @@ impl Auction {
 	    		*state = State::Process;
 	    	}
 		}, duration)
+	}
+
+	// helper function to calculate the changes to each player following the flow auction
+	pub fn flow_player_updates(clearing_price: f64, bids: Arc<Book>, asks: Arc<Book>) -> Vec<PlayerUpdate> {
+		let mut updates = Vec::<PlayerUpdate>::new();
+		let bid_orders = bids.orders.lock().expect("couldn't lock");
+		for bid in bid_orders.iter() {
+			let v = bid.calc_flow_demand(clearing_price);
+			updates.push(PlayerUpdate::new(
+					bid.trader_id.clone(),
+					format!("N/A"), // No filler id -> assuming trade with ex (update later)
+					bid.order_id,
+					0,				// No filler order -> assuming trade with ex (update later)
+					clearing_price,
+					v
+				));
+		}
+
+		let ask_orders = asks.orders.lock().expect("couldn't lock");
+		for ask in ask_orders.iter() {
+			let v = ask.calc_flow_supply(clearing_price);
+			updates.push(PlayerUpdate::new(
+					format!("N/A"), // No filler id -> assuming trade with ex (update later)
+					ask.trader_id.clone(),
+					0,				// No filler order -> assuming trade with ex (update later)
+					ask.order_id,
+					clearing_price,
+					v
+				));
+		}
+		updates
 	}
 
 	pub fn get_price_bounds(bids: Arc<Book>, asks: Arc<Book>) -> (f64, f64) {		

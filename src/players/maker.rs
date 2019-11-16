@@ -52,6 +52,35 @@ impl Player for Maker {
 		self.orders.lock().unwrap().len()
 	}
 
+	fn cancel_order(&mut self, o_id: u64) -> Result<(), &'static str> {
+		// Get the lock on the player's orders
+		let mut orders = self.orders.lock().expect("couldn't acquire lock cancelling order");
+		// Find the index of the existing order using the order_id
+		let order_index: Option<usize> = orders.iter().position(|o| &o.order_id == &o_id);
+		
+		if let Some(i) = order_index {
+        	orders.remove(i);
+        	return Ok(());
+        } else {
+        	return Err("ERROR: order not found to cancel");
+        }
+	}
+
+
+	fn update_order_vol(&mut self, o_id: u64, vol_to_add: f64) -> Result<(), &'static str> {
+		// Get the lock on the player's orders
+		let mut orders = self.orders.lock().expect("couldn't acquire lock cancelling order");
+		// Find the index of the existing order using the order_id
+		let order_index: Option<usize> = orders.iter().position(|o| &o.order_id == &o_id);
+		
+		if let Some(i) = order_index {
+        	orders[i].quantity += vol_to_add;
+        	return Ok(());
+        } else {
+        	return Err("ERROR: order not found to cancel");
+        }
+	}
+
 }
 
 
