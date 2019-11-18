@@ -7,6 +7,7 @@ use flow_rs::exchange::exchange_logic::Auction;
 use flow_rs::players::miner::Miner;
 use flow_rs::exchange::MarketType;
 use flow_rs::exchange::clearing_house::ClearingHouse;
+use flow_rs::players::investor::Investor;
 use std::sync::Arc;
 use rand::{Rng, thread_rng};
 use more_asserts::{assert_le};
@@ -269,16 +270,18 @@ pub fn test_klf_update_chouse() {
 
 	
 	// Calculate what each player's end vol should be before so we can check later
-	let mut bids_vol = Vec::<(String, f64)>::new();
+	let mut bids_vol = Vec::<(String, f64, f64)>::new();
 	for bid in bids.iter() {
 		let vol = bid.calc_flow_demand(81.09048166081236);
-		bids_vol.push((bid.trader_id.clone(), vol));
+		let bal = vol * 81.09048166081236;
+		bids_vol.push((bid.trader_id.clone(), bal, vol));
 	}
 
-	let mut asks_vol = Vec::<(String, f64)>::new();
+	let mut asks_vol = Vec::<(String, f64, f64)>::new();
 	for ask in asks.iter() {
 		let vol = ask.calc_flow_supply(81.09048166081236);
-		asks_vol.push((ask.trader_id.clone(), vol));
+		let bal = vol * 81.09048166081236;
+		asks_vol.push((ask.trader_id.clone(), bal, vol));
 	}
 
 	// Send all the orders in parallel 
@@ -322,15 +325,126 @@ pub fn test_klf_update_chouse() {
 
 	house.flow_batch_update(results);
 
-	for (bid_id, vol) in bids_vol {
+	for (bid_id, bal, vol) in bids_vol {
 		let player = house.get_player(bid_id).expect("couldn't get player");
 		assert!(Auction::equal_e(&player.get_inv(), &vol));
+		assert!(Auction::equal_e(&player.get_bal(), &-bal));
 	}
 
-	for (ask_id, vol) in asks_vol {
+	for (ask_id, bal, vol) in asks_vol {
 		let player = house.get_player(ask_id).expect("couldn't get player");
 		assert!(Auction::equal_e(&player.get_inv(), &-vol));
+		assert!(Auction::equal_e(&player.get_bal(), &bal));
 	}
+}
+
+#[test]
+pub fn test_fba_update_chouse() {
+    let pool = Arc::new(common::setup_mem_pool());
+	let bids_book = Arc::new(common::setup_bids_book());
+	let asks_book = Arc::new(common::setup_asks_book());
+	
+	// Setup bids and asks
+	let mut handles = Vec::new();
+
+	let mut miner = common::setup_miner();
+	let market_type = MarketType::FBA;
+
+	let mut house = ClearingHouse::new();
+	let mut i1 = Investor::new(format!("ask1"));
+	let mut i2 = Investor::new(format!("ask2"));
+	let mut i3 = Investor::new(format!("bid1"));
+	let mut i4 = Investor::new(format!("bid2"));
+
+	// Setup bids and asks
+	let mut ask1 = common::setup_ask_limit_order();
+	ask1.quantity = 50.0;
+	ask1.price = 11.30;
+	ask1.trader_id = format!("ask1");
+	i1.orders.lock().unwrap().push(ask1.clone());
+
+	let mut ask2 = common::setup_ask_limit_order();
+	ask2.quantity = 50.0;
+	ask2.price = 12.50;
+	ask2.trader_id = format!("ask2");
+	i2.orders.lock().unwrap().push(ask2.clone());
+
+	let mut bid1 = common::setup_bid_limit_order();
+	bid1.quantity = 44.0;
+	bid1.price = 12.0;
+	bid1.trader_id = format!("bid1");
+	i3.orders.lock().unwrap().push(bid1.clone());
+
+	let mut bid2 = common::setup_bid_limit_order();
+	bid2.quantity = 23.0;
+	bid2.price = 11.20;
+	bid2.trader_id = format!("bid2");
+	i4.orders.lock().unwrap().push(bid2.clone());
+
+	// Send all the orders in parallel 
+	handles.push(OrderProcessor::conc_recv_order(bid1, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(bid2, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(ask1, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(ask2, Arc::clone(&pool)));
+
+	house.reg_investor(i1);
+	house.reg_investor(i2);
+	house.reg_investor(i3);
+	house.reg_investor(i4);
+
+	assert_eq!(house.num_players(), 4);
+
+	// Wait for the threads to finish
+	for h in handles {
+		h.join().unwrap();
+	}
+
+	// Create frame from bid order in mempool
+	miner.make_frame(Arc::clone(&pool), BLOCK_SIZE);
+
+	// Process the bid order
+	let results = miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type).unwrap();
+
+	// The bid1's volume was filled so it should have been removed from the book
+	assert_eq!(bids_book.len(), 1);
+
+	// Ask1 should have 50-44 = 6 remaining quanitity in order
+	assert_eq!(asks_book.len(), 2);
+
+	assert!(Auction::equal_e(&results.uniform_price.unwrap(), &11.30));
+
+	println!("{:?}", results);
+
+	// if let Some(player_updates) = results.cross_results {
+	// 	// Should have received updates
+	// 	assert_ne!(0, player_updates.len());
+	// 	for pu in player_updates {
+	// 		assert_eq!(pu.payer_order_id, bid1_id);
+	// 		assert_eq!(pu.vol_filler_order_id, ask1_id);
+	// 		assert_eq!(pu.volume, 44.0);
+	// 		assert_eq!(pu.price, 11.30);
+	// 	}
+	// }
+
+	house.fba_batch_update(results);
+
+	let player = house.get_player(format!("ask1")).expect("couldn't get player");
+	assert!(Auction::equal_e(&player.get_inv(), &(-44.0)));
+	assert!(Auction::equal_e(&player.get_bal(), &(44.0*11.30)));
+
+	let player = house.get_player(format!("ask2")).expect("couldn't get player");
+	assert!(Auction::equal_e(&player.get_inv(), &0.0));
+	assert!(Auction::equal_e(&player.get_bal(), &0.0));
+
+	let player = house.get_player(format!("bid1")).expect("couldn't get player");
+	assert!(Auction::equal_e(&player.get_inv(), &44.0));
+	assert!(Auction::equal_e(&player.get_bal(), &-(44.0*11.30)));
+
+	let player = house.get_player(format!("bid2")).expect("couldn't get player");
+	assert!(Auction::equal_e(&player.get_inv(), &0.0));
+	assert!(Auction::equal_e(&player.get_bal(), &0.0));
+	
+	println!("bids: {:?}, asks: {:?}", bids_book, asks_book);
 }
 
 

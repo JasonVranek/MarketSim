@@ -127,18 +127,22 @@ impl ClearingHouse {
 					let payment = pu.price * volume;
 					if let Some((new_bal, new_inv)) = self.update_player(bidder_id.clone(), -payment, volume) {
 						println!("Updated {}. bal=>{}, inv=>{}", bidder_id.clone(), new_bal, new_inv);
+					} else {
+						panic!("failed to update {}'s balance/inventory", bidder_id);
 					}
 
-					// Subtract vol from the trader's order
-					self.update_player_order_vol(bidder_id.clone(), pu.payer_order_id, -volume).expect("Failed to update");
+					// Add vol to the bidder's order
+					self.update_player_order_vol(bidder_id.clone(), pu.payer_order_id, volume).expect("Failed to update");
 
 					// Update asker: +bal, -inv
 					let asker_id = pu.vol_filler_id;
 					if let Some((new_bal, new_inv)) = self.update_player(asker_id.clone(), payment, -volume) {
 							println!("Updated {}. bal=>{}, inv=>{}", asker_id.clone(), new_bal, new_inv);
+					} else {
+						panic!("failed to update {}'s balance/inventory", bidder_id);
 					}
 
-					// Subtract vol from the trader's order
+					// Subtract vol from the asker's order
 					self.update_player_order_vol(asker_id.clone(), pu.vol_filler_order_id, -volume).expect("Failed to update");
 				}
 			}
@@ -236,6 +240,7 @@ impl ClearingHouse {
 	/// Adds volume to a trader's order to reflect changes in the order book. 
 	/// If they updated volume <=0, the order is dropped from the player's list
 	pub fn update_player_order_vol(&mut self, trader_id: String, order_id: u64, vol_to_add: f64) -> Result<(), &'static str> {
+		println!("Updating {}'s order {} volume by {}", trader_id, order_id, vol_to_add);
 		let mut players = self.players.lock().unwrap();
 		if let Some(player) = players.get_mut(&trader_id) {
 			let res = player.update_order_vol(order_id, vol_to_add);

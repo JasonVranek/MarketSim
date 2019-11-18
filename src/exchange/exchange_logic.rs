@@ -11,7 +11,7 @@ use rayon::prelude::*;
 use math::round;
 
 
-const EPSILON: f64 =  0.000_000_001;
+const EPSILON: f64 =  0.000_001;
 const MAX_PRICE: f64 = 999_999_999.0;
 const MIN_PRICE: f64 = 0.0;
 const MAX_ITERS: usize = 1000;
