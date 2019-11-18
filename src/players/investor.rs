@@ -29,6 +29,10 @@ impl Investor {
 }
 
 impl Player for Investor {
+
+	fn get_id(&self) -> String {
+		self.trader_id.clone()
+	}
 	
 
 	fn get_bal(&self) -> f64 {
@@ -86,6 +90,15 @@ impl Player for Investor {
         } else {
         	return Err("ERROR: order not found to cancel");
         }
+	}
+
+	fn copy_orders(&self) -> Vec<Order> {
+		let orders = self.orders.lock().expect("couldn't acquire lock cancelling order");
+		let mut copied = Vec::<Order>::new();
+		for o in orders.iter() {
+			copied.push(o.clone());
+		}
+		copied
 	}
 
 }

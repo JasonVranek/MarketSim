@@ -28,28 +28,28 @@ impl ClearingHouse {
 
 
 	/// Register an investor to the ClearingHouse Hashmap
-	pub fn reg_investor(&mut self, inv: Investor) {
+	pub fn reg_investor(&self, inv: Investor) {
 		let mut players = self.players.lock().unwrap();
 		players.entry(inv.trader_id.clone()).or_insert(Box::new(inv));
 	}
 
 
 	/// Register a miner to the ClearingHouse Hashmap
-	pub fn reg_maker(&mut self, maker: Maker) {
+	pub fn reg_maker(&self, maker: Maker) {
 		let mut players = self.players.lock().unwrap();
 		players.entry(maker.trader_id.clone()).or_insert(Box::new(maker));
 	}
 
 
 	/// Register a miner to the ClearingHouse Hashmap
-	pub fn reg_miner(&mut self, miner: Miner) {
+	pub fn reg_miner(&self, miner: Miner) {
 		let mut players = self.players.lock().unwrap();
 		players.entry(miner.trader_id.clone()).or_insert(Box::new(miner));
 	}
 
 
 	// Gets a reference to the player by popping it from the hashmap
-	pub fn get_player(&mut self, id: String) -> Option<Box<dyn Player>> {
+	pub fn get_player(&self, id: String) -> Option<Box<dyn Player>> {
 		let mut players = self.players.lock().unwrap();
 		match players.remove(&id) {
 			Some(player) => Some(player),
@@ -59,7 +59,7 @@ impl ClearingHouse {
 
 
 	/// Adds to the player's balance and returns their updated balance
-	pub fn update_player_bal(&mut self, id: String, bal_to_add: f64) -> Option<f64> {
+	pub fn update_player_bal(&self, id: String, bal_to_add: f64) -> Option<f64> {
 		let mut players = self.players.lock().unwrap();
 		match players.get_mut(&id) {
 			Some(player) => { 
@@ -72,7 +72,7 @@ impl ClearingHouse {
 
 
 	/// Adds to the player's inventory and returns their updated inventory
-	pub fn update_player_inv(&mut self, id: String, inv_to_add: f64) -> Option<f64> {
+	pub fn update_player_inv(&self, id: String, inv_to_add: f64) -> Option<f64> {
 		let mut players = self.players.lock().unwrap();
 		match players.get_mut(&id) {
 			Some(player) => { 
@@ -86,7 +86,7 @@ impl ClearingHouse {
 
 	/// Updates both a single player's balance and inventory
 	/// Returns tuple Option<(updated_bal: f64, updated_inv: f64)>
-	pub fn update_player(&mut self, id: String, bal_to_add: f64, inv_to_add: f64) -> Option<(f64, f64)>{
+	pub fn update_player(&self, id: String, bal_to_add: f64, inv_to_add: f64) -> Option<(f64, f64)>{
 		let mut players = self.players.lock().unwrap();
 		match players.get_mut(&id) {
 			Some(player) => { 
@@ -107,16 +107,52 @@ impl ClearingHouse {
 	// }
 
 	/// Gets the TradeResults from an auction and updates each player
-	pub fn update_house(&mut self, results: TradeResults) {
+	pub fn update_house(&self, results: TradeResults) {
 		match results.auction_type {
-			MarketType::CDA => return,
+			MarketType::CDA => self.cda_cross_update(results),
 			MarketType::FBA => self.fba_batch_update(results),
 			MarketType::KLF => self.flow_batch_update(results),
 		}
 	}
 
+	/// Consumes the trade results from CDA limit order cross to update each player's state
+	pub fn cda_cross_update(&self, results: TradeResults) {
+		match results.cross_results {
+			None => return,
+			Some(player_updates) => {
+				for pu in player_updates {
+					// Update bidder: -bal, +inv
+					let bidder_id = pu.payer_id;
+					let volume = pu.volume;
+					let payment = pu.price * volume;
+					if let Some((new_bal, new_inv)) = self.update_player(bidder_id.clone(), -payment, volume) {
+						println!("Updated {}. bal=>{}, inv=>{}", bidder_id.clone(), new_bal, new_inv);
+					} else {
+						self.report_player(bidder_id.clone());
+						panic!("failed to update {}'s balance/inventory", bidder_id);
+					}
+
+					// NOTE: in CDA, the order's volume in orderbook is implicitly modified during crossing
+					// self.update_player_order_vol(bidder_id.clone(), pu.payer_order_id, -volume).expect("Failed to update");
+
+					// Update asker: +bal, -inv
+					let asker_id = pu.vol_filler_id;
+					if let Some((new_bal, new_inv)) = self.update_player(asker_id.clone(), payment, -volume) {
+							println!("Updated {}. bal=>{}, inv=>{}", asker_id.clone(), new_bal, new_inv);
+					} else {
+						self.report_player(asker_id.clone());
+						panic!("failed to update {}'s balance/inventory", asker_id);
+					}
+
+					// NOTE: in CDA, the order's volume in orderbook is implicitly modified during crossing
+					// self.update_player_order_vol(asker_id.clone(), pu.vol_filler_order_id, -volume).expect("Failed to update");
+				}
+			}
+		}
+	}
+
 	/// Consumes the trade results to update each player's state
-	pub fn fba_batch_update(&mut self, results: TradeResults) {
+	pub fn fba_batch_update(&self, results: TradeResults) {
 		match results.cross_results {
 			None => return,
 			Some(player_updates) => {
@@ -131,8 +167,8 @@ impl ClearingHouse {
 						panic!("failed to update {}'s balance/inventory", bidder_id);
 					}
 
-					// Add vol to the bidder's order
-					self.update_player_order_vol(bidder_id.clone(), pu.payer_order_id, volume).expect("Failed to update");
+					// Subtract interest from the bidder's order
+					self.update_player_order_vol(bidder_id.clone(), pu.payer_order_id, -volume).expect("Failed to update");
 
 					// Update asker: +bal, -inv
 					let asker_id = pu.vol_filler_id;
@@ -142,7 +178,7 @@ impl ClearingHouse {
 						panic!("failed to update {}'s balance/inventory", bidder_id);
 					}
 
-					// Subtract vol from the asker's order
+					// Subtract interest from the asker's order
 					self.update_player_order_vol(asker_id.clone(), pu.vol_filler_order_id, -volume).expect("Failed to update");
 				}
 			}
@@ -152,7 +188,7 @@ impl ClearingHouse {
 	/// Given the clearing price of the last batch, updates every involved player's state
 	// For every order that was in the order book at auction time, 
 	// Calculate player.demand(price) or player.supply(price)
-	pub fn flow_batch_update(&mut self, results: TradeResults) {
+	pub fn flow_batch_update(&self, results: TradeResults) {
 		match results.uniform_price {
 			None => return,
 			Some(_clearing_price) => {
@@ -196,7 +232,7 @@ impl ClearingHouse {
 
 	
 	/// Add a new order to the HashMap indexed by the player's id
-	pub fn new_order(&mut self, order: Order) -> Result<(), &'static str> {
+	pub fn new_order(&self, order: Order) -> Result<(), &'static str> {
 		let mut players = self.players.lock().unwrap();
 		// Find the player by trader id and add their order
 		match players.get_mut(&order.trader_id) {
@@ -224,7 +260,7 @@ impl ClearingHouse {
 	}
 
 	/// Replaces a trader's order in the HashMap with the supplied 'order' 
-	pub fn update_player_order(&mut self, order: Order) -> Result<(), &'static str> {
+	pub fn update_player_order(&self, order: Order) -> Result<(), &'static str> {
 		match self.cancel_player_order(order.trader_id.clone(), order.order_id) {
 			Ok(()) => {
 				self.new_order(order)
@@ -239,7 +275,7 @@ impl ClearingHouse {
 
 	/// Adds volume to a trader's order to reflect changes in the order book. 
 	/// If they updated volume <=0, the order is dropped from the player's list
-	pub fn update_player_order_vol(&mut self, trader_id: String, order_id: u64, vol_to_add: f64) -> Result<(), &'static str> {
+	pub fn update_player_order_vol(&self, trader_id: String, order_id: u64, vol_to_add: f64) -> Result<(), &'static str> {
 		println!("Updating {}'s order {} volume by {}", trader_id, order_id, vol_to_add);
 		let mut players = self.players.lock().unwrap();
 		if let Some(player) = players.get_mut(&trader_id) {
@@ -254,7 +290,7 @@ impl ClearingHouse {
 	}
 
 	/// Cancel's a trader's order in the HashMap with the supplied 'order'
-	pub fn cancel_player_order(&mut self, trader_id: String, order_id: u64) -> Result<(), &str> {
+	pub fn cancel_player_order(&self, trader_id: String, order_id: u64) -> Result<(), &str> {
 		let mut players = self.players.lock().unwrap();
 		if let Some(player) = players.get_mut(&trader_id) {
 			let res = player.cancel_order(order_id);
@@ -268,10 +304,19 @@ impl ClearingHouse {
 	}
 
 	/// Removes the player from the ClearingHouse HashMap
-	pub fn del_player(&mut self, trader_id: String) -> Option<()>{
+	pub fn del_player(&self, trader_id: String) -> Option<()>{
 		match self.players.lock().unwrap().remove(&trader_id) {
 			Some(_p) => Some(()),
 			None => None
+		}
+	}
+
+	pub fn report_player(&self, trader_id: String) {
+		let players = self.players.lock().unwrap();
+		if let Some(p) = players.get(&trader_id) {
+			println!("id={}, bal={}, inv={}, orders={:?}", p.get_id(), p.get_bal(), p.get_inv(), p.copy_orders());
+		} else {
+			println!("Couldn't report on {}", trader_id);
 		}
 	}
 
@@ -296,6 +341,7 @@ impl ClearingHouse {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use std::sync::Arc;
 
 	#[test]
 	fn test_ch() {
@@ -309,7 +355,7 @@ mod tests {
 
 		let min = Miner::new(format!("{:?}", "SquillyFob"));
 
-		let mut ch = ClearingHouse::new();
+		let ch = Arc::new(ClearingHouse::new());
 
 		// Test adding new players
 		ch.reg_investor(i);

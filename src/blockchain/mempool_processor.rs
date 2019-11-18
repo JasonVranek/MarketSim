@@ -1,4 +1,5 @@
 use crate::order::order::{Order, OrderType, TradeType, ExchangeType};
+use crate::exchange::clearing_house::ClearingHouse;
 use crate::blockchain::mem_pool::MemPool;
 use crate::order::order_book::Book;
 use crate::controller::{Task, State};
@@ -43,11 +44,11 @@ impl MemPoolProcessor {
 	// modify the state of either the Bids or Asks Book, but must
 	// first acquire a lock on the respective book. 
 	pub fn seq_process_orders(frame: &mut Vec<Order>, bids: Arc<Book>, 
-									asks: Arc<Book>, m_t: MarketType) {
+									asks: Arc<Book>, m_t: MarketType, house: Arc<ClearingHouse>) {
 		for order in frame.drain(..) {
 			println!("Processing order:{:?}", order);
 			match order.order_type {
-				OrderType::Enter => MemPoolProcessor::seq_process_enter(Arc::clone(&bids), Arc::clone(&asks), order, m_t.clone()),
+				OrderType::Enter => MemPoolProcessor::seq_process_enter(Arc::clone(&bids), Arc::clone(&asks), order, m_t.clone(), Arc::clone(&house)),
 				OrderType::Update => MemPoolProcessor::seq_process_update(Arc::clone(&bids), Arc::clone(&asks), order, m_t.clone()),
 				OrderType::Cancel => MemPoolProcessor::seq_process_cancel(Arc::clone(&bids), Arc::clone(&asks), order, m_t.clone()),
 			};
@@ -56,7 +57,7 @@ impl MemPoolProcessor {
 
 
 	// Checks if the new order crosses. Modifies orders in book then calculates new max price
-	fn seq_process_enter(bids: Arc<Book>, asks: Arc<Book>, order: Order, m_t: MarketType) {
+	fn seq_process_enter(bids: Arc<Book>, asks: Arc<Book>, order: Order, m_t: MarketType, house: Arc<ClearingHouse>) {
 		// Spawn a new thread to process the order
     	match m_t {
     		MarketType::FBA|MarketType::KLF => {
@@ -77,7 +78,10 @@ impl MemPoolProcessor {
 						// Only check for cross if this ask price is lower than best ask
 						if order.price < asks.get_min_price() {
 							// This will add the new ask to the book if it doesn't fully transact
-							Auction::calc_ask_crossing(bids, asks, order);
+							if let Some(results) = Auction::calc_ask_crossing(bids, asks, order) {
+								// We have some trade results, apply updates to the clearing house
+								house.cda_cross_update(results);
+							} 
 						} else {
 							// We need to add the ask to the book, best price will be updated in add_order
 							asks.add_order(order).expect("Failed to add order");
@@ -87,7 +91,10 @@ impl MemPoolProcessor {
 						// Only check for cross if this bid price is higher than best bid
 						if order.price > bids.get_max_price() {
 							// This will add the new bid to the book if it doesn't fully transact
-							Auction::calc_bid_crossing(bids, asks, order);
+							if let Some(results) = Auction::calc_bid_crossing(bids, asks, order) {
+								// We have some trade results, apply updates to the clearing house
+								house.cda_cross_update(results);
+							}
 						} else {
 							// We need to add the ask to the book, best price will be updated in add_order
 							bids.add_order(order).expect("Failed to add order...");

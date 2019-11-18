@@ -27,7 +27,7 @@ impl Clone for TraderT {
 
 /// A trait common to Investors, Makers, and Miners
 pub trait Player {
-	// fn new(trader_id: String) -> Self;
+	fn get_id(&self) -> String;
 
 	fn get_bal(&self) -> f64;
 
@@ -44,6 +44,8 @@ pub trait Player {
 	fn cancel_order(&mut self, o_id: u64) -> Result<(), &'static str>;
 
 	fn update_order_vol(&mut self, o_id: u64, vol_to_add: f64) -> Result<(), &'static str>;
+
+	fn copy_orders(&self) -> Vec<Order>;
 }
 
 

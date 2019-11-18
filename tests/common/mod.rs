@@ -1,5 +1,6 @@
 extern crate flow_rs;
 extern crate more_asserts;
+use flow_rs::exchange::clearing_house::ClearingHouse;
 use flow_rs::blockchain::order_processor::OrderProcessor;
 use flow_rs::simulation::trader_behavior::*;
 use flow_rs::blockchain::mem_pool::*;
@@ -21,6 +22,10 @@ pub fn setup() {
 
 pub fn setup_miner() -> Miner {
 	Miner::new(format!("{:?}", "asfasdf"))
+}
+
+pub fn setup_clearing_house() -> ClearingHouse {
+	ClearingHouse::new()
 }
 
 pub fn setup_bid_limit_order() -> Order {
@@ -205,6 +210,10 @@ pub fn setup_n_investors(n: usize) -> Vec<Investor>{
 	}
 	vec
 } 
+
+pub fn setup_investor(trader_id: String) -> Investor {
+	Investor::new(trader_id)
+}
 
 pub fn setup_n_makers(n: usize) -> Vec<Maker> {
 	let mut vec = Vec::<Maker>::new();

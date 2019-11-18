@@ -1,7 +1,6 @@
+use crate::exchange::clearing_house::ClearingHouse;
 use crate::players::Player;
 use crate::order::order::Order;
-use crate::players::TraderT;
-use crate::utility::gen_trader_id;
 use crate::blockchain::mem_pool::MemPool;
 use crate::blockchain::mempool_processor::MemPoolProcessor;
 use crate::order::order_book::Book;
@@ -52,8 +51,14 @@ impl Miner {
 	}
 
 	/// 'Publishes' the Miner's frame by sequentially executing the orders in the frame
-	pub fn publish_frame(&mut self, bids: Arc<Book>, asks: Arc<Book>, m_t: MarketType) -> Option<TradeResults> {
-		MemPoolProcessor::seq_process_orders(&mut self.frame, Arc::clone(&bids), Arc::clone(&asks), m_t.clone());
+	pub fn publish_frame(&mut self, bids: Arc<Book>, 
+						asks: Arc<Book>, m_t: MarketType, 
+						house: Arc<ClearingHouse>) -> Option<TradeResults> {
+		MemPoolProcessor::seq_process_orders(&mut self.frame, 
+											Arc::clone(&bids), 
+											Arc::clone(&asks), 
+											m_t.clone(),
+											Arc::clone(&house));
 		// Run auction after book has been updated (CDA is prcessed in seq_process_orders)
 		Auction::run_auction(bids, asks, m_t)
 	}
@@ -67,7 +72,9 @@ impl Miner {
 
 
 impl Player for Miner {
-	
+	fn get_id(&self) -> String {
+		self.trader_id.clone()
+	}
 
 	fn get_bal(&self) -> f64 {
 		self.balance
@@ -120,6 +127,15 @@ impl Player for Miner {
         } else {
         	return Err("ERROR: order not found to cancel");
         }
+	}
+
+	fn copy_orders(&self) -> Vec<Order> {
+		let orders = self.orders.lock().expect("couldn't acquire lock cancelling order");
+		let mut copied = Vec::<Order>::new();
+		for o in orders.iter() {
+			copied.push(o.clone());
+		}
+		copied
 	}
 }
 
