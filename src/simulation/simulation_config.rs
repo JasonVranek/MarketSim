@@ -1,7 +1,9 @@
 // File for loading in all the parameters for the simulation and then
 // setting up the appropriate constants and distributions.
 // Using distribution libary: https://docs.rs/statrs/0.5.1/statrs/distribution
-use statrs::distribution::{Normal, Uniform, Poisson, Exponential};
+// use statrs::distribution::{Normal, Uniform, Poisson, Exponential, Distribution};
+use rand::{Rng, thread_rng};
+use rand::distributions::{Normal, Distribution};
 
 
 pub struct Constants {
@@ -11,6 +13,18 @@ pub struct Constants {
 	pub block_size: u64,
 }
 
+impl Constants {
+	pub fn new(b_i: u64, n_i: u64, n_m: u64, b_s: u64) -> Constants {
+		Constants {
+			batch_interval: b_i,
+			num_investors: n_i,
+			num_makers: n_m,
+			block_size: b_s,
+		}
+	}
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub enum DistType {
 	Uniform,
 	Normal,
@@ -18,23 +32,200 @@ pub enum DistType {
 	Exponential,
 }
 
-// Each distribution is in the form (µ: f64, std_dev: f64, DistType)
+#[derive(Clone)]
+pub enum DistReason {
+	AsksPrice,
+	BidsCenter,
+	MinerFrontRun,
+	MinerFrameForm,
+	PropagationDelay,
+	InvestorGas,
+	InvestorEnter,
+	MakerType,
+	MakerInventory,
+	MakerBalance,
+}
+
+const NUM_DISTS: usize = DistReason::MakerBalance as usize + 1;
+
+// Each distribution is in the form (µ: f64, std_dev: f64, scalar: f64, DistType)
 pub struct Distributions {
-	pub asks_price: 		(f64, f64, DistType),
-	pub bids_center: 		(f64, f64, DistType),
-	pub miner_front_run: 	(f64, f64, DistType),
-	pub miner_frame_form: 	(f64, f64, DistType),
-	pub propagation_delay: 	(f64, f64, DistType),
-	pub investor_gas: 		(f64, f64, DistType),
-	pub investor_enter: 	(f64, f64, DistType),
-	pub maker_type: 		(f64, f64, DistType),
-	pub maker_inventory: 	(f64, f64, DistType),
-	pub maker_balance: 		(f64, f64, DistType),
+	pub dists: Vec<(f64, f64, f64, DistType)>,
 }
 
 
 impl Distributions {
-	pub fn sample_uniform() {
+	// Takes in a configuration vector of (DistReason, v1: f64, v2: f64, scalar: f64, DistType),
+	// Indexes the dists array by the DistReason
+	pub fn new(config: Vec<(DistReason, f64, f64, f64, DistType)>) -> Distributions {
+		assert!(config.len() > 0);
+		// initialize the vec to be same size as number of distreasons
+		let mut v = vec![(0.0, 0.0, 0.0, DistType::Uniform); NUM_DISTS];
+		for entry in config {
+			v[entry.0 as usize] = (entry.1, entry.2, entry.3, entry.4.clone());
+		}
+		Distributions {
+			dists: v,
+		}
+	}
+
+	// Samples from a uniform distribution, based on supplied params
+	pub fn sample_uniform(low: f64, high: f64, scalar: Option<f64>) -> f64 {
+		if let Some(scalar) = scalar {
+			Distributions::sample(low, high, scalar, DistType::Uniform)
+		} else {
+			Distributions::sample(low, high, 1.0, DistType::Uniform)
+		}
+	}
+
+	// Samples from a normal distribution, based on supplied params
+	pub fn sample_normal(mean: f64, std_dev: f64, scalar: Option<f64>) -> f64 {
+		if let Some(scalar) = scalar {
+			Distributions::sample(mean, std_dev, scalar, DistType::Normal)
+		} else {
+			Distributions::sample(mean, std_dev, 1.0, DistType::Normal)
+		}
+	}
+
+	// Samples from a poisson distribution, based on supplied params
+	pub fn sample_poisson(lambda: f64, scalar: Option<f64>) -> f64 {
+		if let Some(scalar) = scalar {
+			Distributions::sample(lambda, lambda, scalar, DistType::Poisson) 
+		} else {
+			Distributions::sample(lambda, lambda, 1.0, DistType::Poisson)
+		}
+	}
+
+
+	// Samples the distribution based on the config for the respsective DistReason
+	pub fn sample_dist(&self, which_dist: DistReason) -> Option<f64> {
+		// Get the config: (f64, f64, DistType) from our list of configs
+		if let Some(_config) = self.dists.get(which_dist as usize) {
+			Some(Distributions::sample(_config.0, _config.1, _config.2, _config.3.clone()))
+		} else {
+			None
+		}
+	}
+
+	// Normal:  v1 = mean, v2 = std_dev
+	// Uniform: v1 = low, v2 = high
+	// Poisson: v1 = lambda, v2 = lambda
+	// Exp:		v1 = lambda, v2 = lambda
+	pub fn sample(v1: f64, v2: f64, scalar: f64, dtype: DistType) -> f64 {
+		match dtype {
+			DistType::Uniform => 	 scalar * rand::distributions::Uniform::new(v1, v2).sample(&mut thread_rng()),
+			DistType::Normal =>  	 scalar * rand::distributions::Normal::new(v1, v2).sample(&mut thread_rng()),
+			DistType::Poisson => 	 scalar * rand::distributions::Poisson::new(v1).sample(&mut thread_rng()) as f64,
+			DistType::Exponential => scalar * rand::distributions::Exp::new(v1).sample(&mut thread_rng()),
+		}
+	}
+}
+
+
+#[cfg(test)]
+mod tests {
+	use crate::simulation::simulation_config::{DistReason, DistType, Distributions};
+
+	#[test]
+	fn test_index_by_enum() {
+		let a = vec!(5,6,7);
+		assert_eq!(&5, a.get(DistReason::AsksPrice as usize).unwrap());
+		assert_eq!(&6, a.get(DistReason::BidsCenter as usize).unwrap());
+		assert_eq!(&7, a.get(DistReason::MinerFrontRun as usize).unwrap());
+	}
+
+
+	#[test]
+	fn test_config() {
+		let v = vec!(
+		(DistReason::AsksPrice, 110.0, 20.0, 1.0, DistType::Normal),
+		(DistReason::BidsCenter, 90.0, 20.0, 1.0, DistType::Normal),
+		(DistReason::MinerFrontRun, 0.0, 1.0, 1.0, DistType::Uniform),
+		(DistReason::MinerFrameForm, 50.0, 20.0, 1.0, DistType::Normal),
+		(DistReason::PropagationDelay, 20.0, 5.0, 1.0, DistType::Normal),
+		(DistReason::InvestorGas, 0.0, 1.0, 1.0, DistType::Uniform),
+		(DistReason::InvestorEnter, 50.0, 50.0, 1.0, DistType::Poisson),
+		(DistReason::MakerType, 0.0, 4.0, 1.0, DistType::Uniform),
+		(DistReason::MakerInventory, 0.0, 100.0, 1.0, DistType::Uniform),
+		(DistReason::MakerBalance, 50.0, 100.0, 1.0, DistType::Uniform),
+		);
+
+		let d = Distributions::new(v);
+
+		let d_conf = d.dists.get(DistReason::AsksPrice as usize).unwrap();
+		assert_eq!(d_conf.0, 110.0);
+		assert_eq!(d_conf.1, 20.0);
+		assert_eq!(d_conf.2, 1.0);
+		assert_eq!(d_conf.3, DistType::Normal);
+
+		let d_conf = d.dists.get(DistReason::BidsCenter as usize).unwrap();
+		assert_eq!(d_conf.0, 90.0);
+		assert_eq!(d_conf.1, 20.0);
+		assert_eq!(d_conf.2, 1.0);
+		assert_eq!(d_conf.3, DistType::Normal);
+
+		let d_conf = d.dists.get(DistReason::MinerFrontRun as usize).unwrap();
+		assert_eq!(d_conf.0, 0.0);
+		assert_eq!(d_conf.1, 1.0);
+		assert_eq!(d_conf.2, 1.0);
+		assert_eq!(d_conf.3, DistType::Uniform);
+
+		let d_conf = d.dists.get(DistReason::MinerFrameForm as usize).unwrap();
+		assert_eq!(d_conf.0, 50.0);
+		assert_eq!(d_conf.1, 20.0);
+		assert_eq!(d_conf.2, 1.0);
+		assert_eq!(d_conf.3, DistType::Normal);
+
+		let d_conf = d.dists.get(DistReason::PropagationDelay as usize).unwrap();
+		assert_eq!(d_conf.0, 20.0);
+		assert_eq!(d_conf.1, 5.0);
+		assert_eq!(d_conf.2, 1.0);
+		assert_eq!(d_conf.3, DistType::Normal);
+
+		let d_conf = d.dists.get(DistReason::InvestorGas as usize).unwrap();
+		assert_eq!(d_conf.0, 0.0);
+		assert_eq!(d_conf.1, 1.0);
+		assert_eq!(d_conf.2, 1.0);
+		assert_eq!(d_conf.3, DistType::Uniform);
+
+		let d_conf = d.dists.get(DistReason::InvestorEnter as usize).unwrap();
+		assert_eq!(d_conf.0, 50.0);
+		assert_eq!(d_conf.1, 50.0);
+		assert_eq!(d_conf.2, 1.0);
+		assert_eq!(d_conf.3, DistType::Poisson);
+
+		let d_conf = d.dists.get(DistReason::MakerType as usize).unwrap();
+		assert_eq!(d_conf.0, 0.0);
+		assert_eq!(d_conf.1, 4.0);
+		assert_eq!(d_conf.2, 1.0);
+		assert_eq!(d_conf.3, DistType::Uniform);
+
+		let d_conf = d.dists.get(DistReason::MakerInventory as usize).unwrap();
+		assert_eq!(d_conf.0, 0.0);
+		assert_eq!(d_conf.1, 100.0);
+		assert_eq!(d_conf.2, 1.0);
+		assert_eq!(d_conf.3, DistType::Uniform);
+
+		let d_conf = d.dists.get(DistReason::MakerBalance as usize).unwrap();
+		assert_eq!(d_conf.0, 50.0);
+		assert_eq!(d_conf.1, 100.0);
+		assert_eq!(d_conf.2, 1.0);
+		assert_eq!(d_conf.3, DistType::Uniform);
 
 	}
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -2,7 +2,6 @@ extern crate flow_rs;
 extern crate more_asserts;
 use flow_rs::exchange::clearing_house::ClearingHouse;
 use flow_rs::blockchain::order_processor::OrderProcessor;
-use flow_rs::simulation::trader_behavior::*;
 use flow_rs::blockchain::mem_pool::*;
 use flow_rs::order::order::*;
 use flow_rs::order::order_book::*;
@@ -10,7 +9,7 @@ use flow_rs::utility::{gen_rand_f64, gen_rand_trader_id};
 use flow_rs::players::miner::Miner;
 use flow_rs::players::investor::Investor;
 use flow_rs::players::maker::Maker;
-use flow_rs::players::Player;
+use flow_rs::simulation::trader_behavior::*;
 use std::sync::Arc;
 use rand::Rng;
 
