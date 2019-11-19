@@ -1,6 +1,6 @@
 use crate::controller::{Task, State};
 use crate::order::order_book::Book;
-use crate::order::order::{Order, TradeType};
+use crate::order::order::{Order};
 use crate::exchange::MarketType;
 use crate::utility::get_time;
 
@@ -8,7 +8,7 @@ use std::sync::{Mutex, Arc};
 use std::cmp::Ordering;
 
 use rayon::prelude::*;
-use math::round;
+
 
 
 const EPSILON: f64 =  0.000_001;

@@ -22,6 +22,8 @@ extern crate serde_json;
 extern crate log;
 extern crate log4rs;
 
+extern crate statrs;
+
 use std::sync::{Mutex, Arc};
 
 // use crate::libmath;
