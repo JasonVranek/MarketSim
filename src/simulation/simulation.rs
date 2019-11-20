@@ -133,6 +133,7 @@ impl Simulation {
 				// Sample order volume from bid/ask distribution
 				let quantity = dists.sample_dist(DistReason::InvestorVolume).expect("couldn't sample vol");
 
+				// Determine if were using flow or limit order
 				let ex_type = match market_type {
 					MarketType::CDA|MarketType::FBA => ExchangeType::LimitOrder,
 					MarketType::KLF => ExchangeType::FlowOrder,
@@ -169,24 +170,59 @@ impl Simulation {
 					Err(e) => {
 						// If we failed to add the order to the player, don't send it to mempool
 						println!("{:?}", e);
-						continue;
 					},
 				}
 
 				// Sample from InvestorEnter distribution how long to wait to send next investor
 				let sleep_time = dists.sample_dist(DistReason::InvestorGas).expect("Couldn't get enter time sample");	
-				let sleep_time = time::Duration::from_millis(sleep_time as u64	);
+				let sleep_time = time::Duration::from_millis(sleep_time as u64);
 				thread::sleep(sleep_time);
 			}
 		})
 	}
 
-	pub fn miner_task() {
-		unimplemented!();
+	pub fn miner_task(mut miner: Miner, dists: Arc<Distributions>, house: Arc<ClearingHouse>, 
+		mempool: Arc<MemPool>, bids: Arc<Book>, asks: Arc<Book>, market_type: MarketType, consts: &'static Constants) -> Task {
+		Task::rpt_task(move || {
+			// Publish the miner's current frame
+			if let Some(results) = miner.publish_frame(Arc::clone(&bids), Arc::clone(&asks), market_type.clone(), Arc::clone(&house)) {
+				// Update the clearing house
+				match market_type {
+					MarketType::FBA => house.fba_batch_update(results),
+					MarketType::KLF => house.flow_batch_update(results),
+					MarketType::CDA => {},
+				}
+			}
+			// Sleep for miner frame delay to simulate multiple miners
+			let sleep_time = dists.sample_dist(DistReason::MinerFrameForm).expect("Couldn't get miner frame form delay");	
+			let sleep_time = time::Duration::from_millis(sleep_time as u64);
+			thread::sleep(sleep_time);
+
+			// Make the next frame after simulated propagation delay expires
+			miner.make_frame(Arc::clone(&mempool), consts.block_size);
+
+			// Miner will front-run with some probability: 
+			let sample = dists.sample_dist(DistReason::MinerFrontRun).expect("Couldn't get miner front run delay");	
+			if sample <= consts.front_run_perc {
+				match miner.front_run() {
+					Ok(order) => {
+						println!("Miner inserted a front-run order: {}", order.order_id);
+						// Register the new order to the ClearingHouse
+						house.new_order(order).expect("Couldn't add front-run order to CH");
+					},
+					Err(e) => {
+						println!("{:?}", e);
+					}
+				}
+			}
+
+			// Wait until the next block publication time
+
+		}, consts.batch_interval)
 	}
 
-	pub fn maker_task() {
-
+	pub fn maker_task() -> Task {
+		unimplemented!();
 	}
 }
 

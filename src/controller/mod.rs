@@ -74,8 +74,8 @@ impl Task {
 	}
 
 	/// Calls the closure on an interval specified by millis 
-	pub fn rpt_task<F>(f: F, millis: u64) -> Task 
-	where F: Fn() + Send + Sync + 'static 
+	pub fn rpt_task<F>(mut f: F, millis: u64) -> Task 
+	where F: FnMut() + Send + Sync + 'static 
 	{
 		let new_task = Interval::new_interval(Duration::from_millis(millis))
 		    .for_each(move |_| {

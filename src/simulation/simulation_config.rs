@@ -10,18 +10,20 @@ pub struct Constants {
 	pub batch_interval: u64,
 	pub num_investors: u64,
 	pub num_makers: u64,
-	pub block_size: u64,
+	pub block_size: usize,
 	pub market_type: MarketType,
+	pub front_run_perc: f64,
 }
 
 impl Constants {
-	pub fn new(b_i: u64, n_i: u64, n_m: u64, b_s: u64, m_t: MarketType) -> Constants {
+	pub fn new(b_i: u64, n_i: u64, n_m: u64, b_s: usize, m_t: MarketType, f_r: f64) -> Constants {
 		Constants {
 			batch_interval: b_i,
 			num_investors: n_i,
 			num_makers: n_m,
 			block_size: b_s,
 			market_type: m_t,
+			front_run_perc: f_r,
 		}
 	}
 }
@@ -38,8 +40,8 @@ pub enum DistType {
 pub enum DistReason {
 	AsksCenter,
 	BidsCenter,
-	InvestorVolume,
 	MinerFrontRun,
+	InvestorVolume,
 	MinerFrameForm,
 	PropagationDelay,
 	InvestorGas,

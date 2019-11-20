@@ -6,8 +6,12 @@ use crate::blockchain::mempool_processor::MemPoolProcessor;
 use crate::order::order_book::Book;
 use crate::exchange::MarketType;
 use crate::exchange::exchange_logic::{Auction, TradeResults};
+use crate::utility::{gen_order_id};
+
 
 use std::sync::{Mutex, Arc};
+use rand::{thread_rng};
+use rand::seq::SliceRandom;
 
 /// A struct for the Miner player. 
 pub struct Miner {
@@ -65,9 +69,23 @@ impl Miner {
 		Auction::run_auction(bids, asks, m_t)
 	}
 
+	// Selects a random order from the frame and appends an identical order with higher block priority
+	pub fn front_run(&mut self) -> Result<Order, &'static str> {
+		let mut rng = thread_rng();
+		if let Some(rand_order) = self.frame.choose(&mut rng) {
+			// Copy and update order 
+			let mut copied = rand_order.clone();
+			copied.trader_id = self.trader_id.clone();
+			copied.gas = 0.0;	// No gas needed since this is miner
+			copied.order_id = gen_order_id();
 
-	pub fn attempt_frontrun(&self) {
-		unimplemented!();
+			// Add order to highest priority spot in frame
+			self.frame.insert(0, copied.clone());
+			Ok(copied)
+		} else {
+			Err("No orders in the frame to front-run")
+		}
+
 	}
 }
 
