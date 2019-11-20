@@ -1,9 +1,9 @@
 // File for loading in all the parameters for the simulation and then
 // setting up the appropriate constants and distributions.
-// Using distribution libary: https://docs.rs/statrs/0.5.1/statrs/distribution
-// use statrs::distribution::{Normal, Uniform, Poisson, Exponential, Distribution};
-use rand::{Rng, thread_rng};
-use rand::distributions::{Normal, Distribution};
+use crate::exchange::MarketType;
+
+use rand::thread_rng;
+use rand::distributions::{Distribution};
 
 
 pub struct Constants {
@@ -11,15 +11,17 @@ pub struct Constants {
 	pub num_investors: u64,
 	pub num_makers: u64,
 	pub block_size: u64,
+	pub market_type: MarketType,
 }
 
 impl Constants {
-	pub fn new(b_i: u64, n_i: u64, n_m: u64, b_s: u64) -> Constants {
+	pub fn new(b_i: u64, n_i: u64, n_m: u64, b_s: u64, m_t: MarketType) -> Constants {
 		Constants {
 			batch_interval: b_i,
 			num_investors: n_i,
 			num_makers: n_m,
 			block_size: b_s,
+			market_type: m_t,
 		}
 	}
 }
@@ -34,8 +36,9 @@ pub enum DistType {
 
 #[derive(Clone)]
 pub enum DistReason {
-	AsksPrice,
+	AsksCenter,
 	BidsCenter,
+	InvestorVolume,
 	MinerFrontRun,
 	MinerFrameForm,
 	PropagationDelay,
@@ -44,9 +47,11 @@ pub enum DistReason {
 	MakerType,
 	MakerInventory,
 	MakerBalance,
+	InvestorBalance,
+	InvestorInventory,
 }
 
-const NUM_DISTS: usize = DistReason::MakerBalance as usize + 1;
+const NUM_DISTS: usize = DistReason::InvestorInventory as usize + 1;
 
 // Each distribution is in the form (µ: f64, std_dev: f64, scalar: f64, DistType)
 pub struct Distributions {
@@ -107,6 +112,15 @@ impl Distributions {
 		}
 	}
 
+	pub fn fifty_fifty() -> usize {
+		let val = rand::distributions::Uniform::new(0.0, 1.0).sample(&mut thread_rng());
+		if val > 0.50 {
+			return 1;
+		} else {
+			return 0;
+		}
+	}
+
 	// Normal:  v1 = mean, v2 = std_dev
 	// Uniform: v1 = low, v2 = high
 	// Poisson: v1 = lambda, v2 = lambda
@@ -129,7 +143,7 @@ mod tests {
 	#[test]
 	fn test_index_by_enum() {
 		let a = vec!(5,6,7);
-		assert_eq!(&5, a.get(DistReason::AsksPrice as usize).unwrap());
+		assert_eq!(&5, a.get(DistReason::AsksCenter as usize).unwrap());
 		assert_eq!(&6, a.get(DistReason::BidsCenter as usize).unwrap());
 		assert_eq!(&7, a.get(DistReason::MinerFrontRun as usize).unwrap());
 	}
@@ -138,7 +152,7 @@ mod tests {
 	#[test]
 	fn test_config() {
 		let v = vec!(
-		(DistReason::AsksPrice, 110.0, 20.0, 1.0, DistType::Normal),
+		(DistReason::AsksCenter, 110.0, 20.0, 1.0, DistType::Normal),
 		(DistReason::BidsCenter, 90.0, 20.0, 1.0, DistType::Normal),
 		(DistReason::MinerFrontRun, 0.0, 1.0, 1.0, DistType::Uniform),
 		(DistReason::MinerFrameForm, 50.0, 20.0, 1.0, DistType::Normal),
@@ -152,7 +166,7 @@ mod tests {
 
 		let d = Distributions::new(v);
 
-		let d_conf = d.dists.get(DistReason::AsksPrice as usize).unwrap();
+		let d_conf = d.dists.get(DistReason::AsksCenter as usize).unwrap();
 		assert_eq!(d_conf.0, 110.0);
 		assert_eq!(d_conf.1, 20.0);
 		assert_eq!(d_conf.2, 1.0);

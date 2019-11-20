@@ -1,6 +1,6 @@
 use crate::players::Player;
 use std::sync::Mutex;
-use crate::order::order::{Order, TradeType};
+use crate::order::order::{Order};
 
 /// A struct for the Maker player. 
 pub struct Maker {

@@ -33,11 +33,26 @@ impl ClearingHouse {
 		players.entry(inv.trader_id.clone()).or_insert(Box::new(inv));
 	}
 
+	/// Register a vector of investors to the ClearingHouse Hashmap
+	pub fn reg_n_investors(&self, investors: Vec<Investor>) {
+		let mut players = self.players.lock().unwrap();
+		for i in investors {
+			players.entry(i.trader_id.clone()).or_insert(Box::new(i));
+		}
+	}
 
-	/// Register a miner to the ClearingHouse Hashmap
+	/// Register a maker to the ClearingHouse Hashmap
 	pub fn reg_maker(&self, maker: Maker) {
 		let mut players = self.players.lock().unwrap();
 		players.entry(maker.trader_id.clone()).or_insert(Box::new(maker));
+	}
+
+	/// Register a vector of makers to the ClearingHouse Hashmap
+	pub fn reg_n_makers(&self, makers: Vec<Maker>) {
+		let mut players = self.players.lock().unwrap();
+		for m in makers {
+			players.entry(m.trader_id.clone()).or_insert(Box::new(m));
+		}
 	}
 
 
