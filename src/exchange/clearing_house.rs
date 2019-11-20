@@ -1,19 +1,22 @@
 use crate::exchange::exchange_logic::TradeResults;
 use crate::exchange::MarketType;
 use crate::order::order::{Order};
-use crate::players::{Player};
+use crate::players::{Player, TraderT};
 use crate::players::investor::Investor;
 use crate::players::maker::Maker;
 use crate::players::miner::Miner;
 
 use std::collections::HashMap;
 use std::sync::Mutex;
+use rand::{thread_rng};
+use rand::seq::SliceRandom;
+
 
 
 /// The struct for keeping track of active players and their balances and inventories
 /// ClearingHouse is a HashMap indexed by each player's trader_id
 pub struct ClearingHouse {
-	pub players: Mutex<HashMap<String, Box<dyn Player>>>,
+	pub players: Mutex<HashMap<String, Box<dyn Player + Send>>>,
 }
 
 
@@ -55,7 +58,6 @@ impl ClearingHouse {
 		}
 	}
 
-
 	/// Register a miner to the ClearingHouse Hashmap
 	pub fn reg_miner(&self, miner: Miner) {
 		let mut players = self.players.lock().unwrap();
@@ -69,6 +71,18 @@ impl ClearingHouse {
 		match players.remove(&id) {
 			Some(player) => Some(player),
 			None => None,
+		}
+	}
+
+	// Shuffles through the players matching the player_type and returns their id
+	pub fn get_rand_player_id(&self, player_type: TraderT) -> Option<String> {
+		let players = self.players.lock().unwrap();
+		let mut rng = thread_rng();
+		let mut _filtered: Vec<(_, _)> = players.iter().filter(|(_k, v)| v.get_player_type() == player_type).collect();
+		if let Some((id, _value)) = _filtered.choose(&mut rng) {
+			return Some(id.to_string());
+		} else {
+			return None
 		}
 	}
 
@@ -112,14 +126,6 @@ impl ClearingHouse {
 			None => None,
 		}
 	}	
-
-
-	// Atomically updates balance and inventory for two players
-	// Adds p to pay_to's balance and subtracts q from pay_to's inventory
-	// Adds q to inv_to's inventory and subtracts p from inv_to's balance
-	// pub fn atomic_swap(&mut self, pay_to: String, inv_to: String, p: f64, q: f64) {
-		// unimplemented!();
-	// }
 
 	/// Gets the TradeResults from an auction and updates each player
 	pub fn update_house(&self, results: TradeResults) {

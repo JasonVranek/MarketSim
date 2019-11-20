@@ -1,6 +1,6 @@
-use crate::players::Player;
+use crate::players::{Player,TraderT};
 use std::sync::Mutex;
-use crate::order::order::{Order, TradeType};
+use crate::order::order::{Order};
 
 
 
@@ -10,6 +10,7 @@ pub struct Investor {
 	pub orders: Mutex<Vec<Order>>,
 	pub balance: f64,
 	pub inventory: f64,
+	pub player_type: TraderT,
 }
 
 /// The 
@@ -20,6 +21,7 @@ impl Investor {
 			orders: Mutex::new(Vec::<Order>::new()),
 			balance: 0.0,
 			inventory: 0.0,
+			player_type: TraderT::Investor,
 		}
 	}
 
@@ -41,6 +43,10 @@ impl Player for Investor {
 
 	fn get_inv(&self) -> f64 {
 		self.inventory
+	}
+
+	fn get_player_type(&self) -> TraderT {
+		self.player_type
 	}
 
 	fn update_bal(&mut self, to_add: f64) {

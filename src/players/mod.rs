@@ -6,7 +6,7 @@ pub mod miner;
 
 
 /// Enum for matching over trader types
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy)]
 pub enum TraderT {
     Maker,
     Investor,
@@ -46,6 +46,8 @@ pub trait Player {
 	fn update_order_vol(&mut self, o_id: u64, vol_to_add: f64) -> Result<(), &'static str>;
 
 	fn copy_orders(&self) -> Vec<Order>;
+
+	fn get_player_type(&self) -> TraderT;
 }
 
 

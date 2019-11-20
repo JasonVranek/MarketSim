@@ -1,5 +1,5 @@
 use crate::exchange::clearing_house::ClearingHouse;
-use crate::players::Player;
+use crate::players::{Player,TraderT};
 use crate::order::order::Order;
 use crate::blockchain::mem_pool::MemPool;
 use crate::blockchain::mempool_processor::MemPoolProcessor;
@@ -16,6 +16,7 @@ pub struct Miner {
 	pub frame: Vec<Order>,
 	pub balance: f64,
 	pub inventory: f64,
+	pub player_type: TraderT,
 }
 
 impl Miner {
@@ -27,6 +28,7 @@ impl Miner {
 			frame: Vec::<Order>::new(),
 			balance: 0.0,
 			inventory: 0.0,
+			player_type: TraderT::Miner,
 
 		}
 	}
@@ -82,6 +84,10 @@ impl Player for Miner {
 
 	fn get_inv(&self) -> f64 {
 		self.inventory
+	}
+
+	fn get_player_type(&self) -> TraderT {
+		self.player_type
 	}
 
 	fn update_bal(&mut self, to_add: f64) {
