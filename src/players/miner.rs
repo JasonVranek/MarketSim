@@ -59,7 +59,8 @@ impl Miner {
 	/// 'Publishes' the Miner's frame by sequentially executing the orders in the frame
 	pub fn publish_frame(&mut self, bids: Arc<Book>, 
 						asks: Arc<Book>, m_t: MarketType, 
-						house: Arc<ClearingHouse>) -> Option<TradeResults> {
+						house: Arc<Mutex<ClearingHouse>>) -> Option<TradeResults> {
+		println!("Publishing Frame: {:?}", self.frame);
 		MemPoolProcessor::seq_process_orders(&mut self.frame, 
 											Arc::clone(&bids), 
 											Arc::clone(&asks), 

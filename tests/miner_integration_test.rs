@@ -91,6 +91,19 @@ fn test_mem_pool_sort_gas() {
 	}
 }
 
+#[test]
+fn test_miner_frontrun() {
+	let n = 10;
+	let pool = common::setup_n_full_mem_pool(n);
+	let mut miner = common::setup_miner();
+	assert_eq!(pool.length(), n);
+	pool.sort_by_gas();
+	miner.make_frame(Arc::clone(&pool), BLOCK_SIZE);
+	let _order = miner.front_run().unwrap();
+	assert_eq!(miner.frame.len(), n+1);
+}
+
+
 // Tests that gas priority is correct and correct ask crosses with best bid
 #[test]
 fn test_cda_ask_transaction() {

@@ -5,7 +5,7 @@ use crate::exchange::MarketType;
 use rand::thread_rng;
 use rand::distributions::{Distribution};
 
-
+#[derive(Clone, Copy)]
 pub struct Constants {
 	pub batch_interval: u64,
 	pub num_investors: u64,
@@ -28,7 +28,7 @@ impl Constants {
 	}
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Deserialize)]
 pub enum DistType {
 	Uniform,
 	Normal,
@@ -36,7 +36,7 @@ pub enum DistType {
 	Exponential,
 }
 
-#[derive(Clone)]
+#[derive(Copy, Clone, Debug, Deserialize)]
 pub enum DistReason {
 	AsksCenter,
 	BidsCenter,
@@ -56,6 +56,7 @@ pub enum DistReason {
 const NUM_DISTS: usize = DistReason::InvestorInventory as usize + 1;
 
 // Each distribution is in the form (µ: f64, std_dev: f64, scalar: f64, DistType)
+#[derive(Debug, Deserialize, Clone)]
 pub struct Distributions {
 	pub dists: Vec<(f64, f64, f64, DistType)>,
 }

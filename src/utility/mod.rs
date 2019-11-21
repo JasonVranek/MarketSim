@@ -52,14 +52,15 @@ pub fn gen_rand_trader_id() -> String {
         .map(|()| rng.sample(Alphanumeric))
         .take(10)
         .collect();
+    id
 
-    let index = rng.gen_range(0, 3);
+    // let index = rng.gen_range(0, 3);
 
-    match index {
-    	0 => format!("MKR{}", id),
-    	1 => format!("MIN{}", id),
-    	_ => format!("INV{}", id),
-    }
+    // match index {
+    	// 0 => format!("MKR{}", id),
+    	// 1 => format!("MIN{}", id),
+    	// _ => format!("INV{}", id),
+    // }
 }
 
 
