@@ -14,44 +14,6 @@ use flow_rs::simulation::config_parser::*;
 
 
 fn main() {
-	// setup_logging("test.log");
-	// info!("poop");
-
-	// Initialize the Exchange
-	// let (queue, bids_book, asks_book, state) = flow_rs::setup_exchange();
-
-	// Create a new Controller to dispatch our tasks
-	// let mut controller = Controller::new();
-    
-	// create a task run an auction every batch_interval (milliseconds)
-	// let batch_interval = 3000;
-	// let auction_task = Auction::async_auction_task(Arc::clone(&bids_book), 
-	// 	                          Arc::clone(&asks_book), 
-	// 	                          Arc::clone(&state), batch_interval);
-	// controller.push(auction_task);
-
-	// create a task that processes order queue every queue_interval (milliseconds)
-	// let queue_interval = 10;
-	// let queue_task = MemPoolProcessor::async_queue_task(Arc::clone(&queue), 
-	// 	                                             Arc::clone(&bids_book), 
-	// 	                                             Arc::clone(&asks_book),
-	// 	                                             Arc::clone(&state),
-	// 	                                             queue_interval);
-	// controller.push(queue_task);
-
-	// // Spawn the tcp server task that listens for incoming orders in JSON format
-	// let tcp_server = tcp_listener(Arc::clone(&queue), format!("127.0.0.1:5000"));
-	// controller.push(tcp_server);
-
-
-	// // Spawn the websocket server thread that listens for incoming orders in JSON format
-	// let address: &'static str = "127.0.0.1:3015";
-	// let _ws_server = ws_listener(Arc::clone(&queue), &address);
-	
-	// // Loop forever asynchronously running tasks
-	// controller.run();
-
-
 	// Create a new Controller to dispatch our tasks
 	let mut controller = Controller::new();
 
@@ -63,11 +25,11 @@ fn main() {
 	let distributions = parse_config_csv().expect("Couldn't parse config");
 
 	let consts = Constants {
-			batch_interval: 300,
+			batch_interval: 3000,
 			num_investors: 5,
 			num_makers: 0,
 			block_size: 1000,
-			market_type: MarketType::CDA,
+			market_type: MarketType::FBA,
 			front_run_perc: 1.0,
 		};
 

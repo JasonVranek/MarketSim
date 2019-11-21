@@ -1,11 +1,10 @@
-use crate::simulation::simulation_config::{Constants, DistType, Distributions, DistReason};
+use crate::simulation::simulation_config::{Constants, Distributions, DistReason};
 use crate::controller::Task;
 use crate::exchange::clearing_house::ClearingHouse;
 use crate::order::order::{Order, TradeType, ExchangeType, OrderType};
 use crate::order::order_book::Book;
 use crate::blockchain::mem_pool::MemPool;
 use crate::players::TraderT;
-use crate::players::Player;
 use crate::players::miner::Miner;
 use crate::players::investor::Investor;
 use crate::players::maker::Maker;
@@ -14,7 +13,7 @@ use crate::blockchain::order_processor::OrderProcessor;
 use crate::utility::gen_trader_id;
 
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::{time, thread};
 use std::thread::JoinHandle;
 
@@ -23,7 +22,7 @@ use std::thread::JoinHandle;
 pub struct Simulation {
 	pub dists: Distributions,
 	pub consts: Constants,
-	pub house: Arc<Mutex<ClearingHouse>>,
+	pub house: Arc<ClearingHouse>,
 	pub mempool: Arc<MemPool>,
 	pub bids_book: Arc<Book>,
 	pub asks_book: Arc<Book>,
@@ -37,7 +36,7 @@ impl Simulation {
 		Simulation {
 			dists: dists,
 			consts: consts,
-			house: Arc::new(Mutex::new(house)),
+			house: Arc::new(house),
 			mempool: Arc::new(mempool),
 			bids_book: Arc::new(bids_book),
 			asks_book: Arc::new(asks_book),
@@ -116,18 +115,13 @@ impl Simulation {
 	/// A repeating task. Will randomly select an Investor from the ClearingHouse,
 	/// generate a bid/ask order priced via bid/ask distributions, send the order to 
 	/// the mempool, and then sleep until the next investor_arrival time.
-	pub fn investor_task(dists: Distributions, house: Arc<Mutex<ClearingHouse>>, mempool: Arc<MemPool>, market_type: MarketType) -> JoinHandle<()> {
+	pub fn investor_task(dists: Distributions, house: Arc<ClearingHouse>, mempool: Arc<MemPool>, market_type: MarketType) -> JoinHandle<()> {
 		// Task::rpt_task(move || {
 		thread::spawn(move || {       
 			loop {
 				println!("In inv task: {:?}", market_type);
 				// Randomly select an investor
-				let trader_id;
-				{
-					// Access the clearinghouse and then drop the lock
-					let house_lock = house.lock().expect("Error locking house");
-					trader_id = house_lock.get_rand_player_id(TraderT::Investor).expect("Couldn't get rand investor");
-				}
+				let trader_id = house.get_rand_player_id(TraderT::Investor).expect("Couldn't get rand investor");
 
 				// Decide bid or ask
 				let trade_type = match Distributions::fifty_fifty() {
@@ -171,56 +165,44 @@ impl Simulation {
 								       dists.sample_dist(DistReason::InvestorGas).expect("Couldn't sample gas")
 				);
 
-				// Add order to the clearinghouse, without holding other resources
-				let mut added_order = false;
-				{
-					let house_lock = house.lock().expect("Error locking house");
-					// Add the order to the ClearingHouse which will register to the correct investor
-					match house_lock.new_order(order.clone()) {
-						Ok(()) => {
-							println!("{:?}", order);
-							added_order = true;
-							
-						},
-						Err(e) => {
-							// If we failed to add the order to the player, don't send it to mempool
-							println!("{:?}", e);
-						},
-					}
-				}
-
-				// Send the order to the MemPool
-				if added_order {
-					OrderProcessor::conc_recv_order(order, Arc::clone(&mempool)).join().expect("Failed to send inv order");
+				// Add the order to the ClearingHouse which will register to the correct investor
+				match house.new_order(order.clone()) {
+					Ok(()) => {
+						// println!("{:?}", order);
+						// Send the order to the MemPool
+						OrderProcessor::conc_recv_order(order, Arc::clone(&mempool)).join().expect("Failed to send inv order");
+						
+					},
+					Err(e) => {
+						// If we failed to add the order to the player, don't send it to mempool
+						println!("{:?}", e);
+					},
 				}
 
 				// Sample from InvestorEnter distribution how long to wait to send next investor
-				let sleep_time = dists.sample_dist(DistReason::InvestorEnter).expect("Couldn't get enter time sample");	
+				let sleep_time = dists.sample_dist(DistReason::InvestorEnter).expect("Couldn't get enter time sample").abs();	
 				let sleep_time = time::Duration::from_millis(sleep_time as u64);
 				thread::sleep(sleep_time);
 			}
 		})
 	}
 
-	pub fn miner_task(mut miner: Miner, dists: Distributions, house: Arc<Mutex<ClearingHouse>>, 
+	pub fn miner_task(mut miner: Miner, dists: Distributions, house: Arc<ClearingHouse>, 
 		mempool: Arc<MemPool>, bids: Arc<Book>, asks: Arc<Book>, consts: Constants) -> Task {
 		println!("out miner task");
 		Task::rpt_task(move || {
 			println!("in miner task");
 			
 			// Publish the miner's current frame
-			{
-				if let Some(vec_results) = miner.publish_frame(Arc::clone(&bids), Arc::clone(&asks), consts.market_type) {
-					// Update the clearing house
-					let house = house.lock().expect("couldnt lock house");
-					for res in vec_results {
-						house.update_house(res);
-					}
+			if let Some(vec_results) = miner.publish_frame(Arc::clone(&bids), Arc::clone(&asks), consts.market_type) {
+				// Update the clearing house
+				for res in vec_results {
+					house.update_house(res);
 				}
 			}
-			
+
 			// Sleep for miner frame delay to simulate multiple miners
-			let sleep_time = dists.sample_dist(DistReason::MinerFrameForm).expect("Couldn't get miner frame form delay");	
+			let sleep_time = dists.sample_dist(DistReason::MinerFrameForm).expect("Couldn't get miner frame form delay").abs();	
 			let sleep_time = time::Duration::from_millis(sleep_time as u64);
 			thread::sleep(sleep_time);
 
@@ -234,7 +216,6 @@ impl Simulation {
 					Ok(order) => {
 						println!("Miner inserted a front-run order: {}", order.order_id);
 						// Register the new order to the ClearingHouse
-						let house = house.lock().expect("couldnt lock house");
 						house.new_order(order).expect("Couldn't add front-run order to CH");
 					},
 					Err(e) => {
