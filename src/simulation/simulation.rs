@@ -210,16 +210,15 @@ impl Simulation {
 			
 			// Publish the miner's current frame
 			{
-				let house = house.lock().expect("poop");
-				if let Some(results) = miner.publish_frame(Arc::clone(&bids), Arc::clone(&asks), consts.market_type, Arc::clone(&house)) {
+				if let Some(vec_results) = miner.publish_frame(Arc::clone(&bids), Arc::clone(&asks), consts.market_type) {
 					// Update the clearing house
-					match consts.market_type {
-						MarketType::FBA => house.fba_batch_update(results),
-						MarketType::KLF => house.flow_batch_update(results),
-						MarketType::CDA => {},
+					let house = house.lock().expect("couldnt lock house");
+					for res in vec_results {
+						house.update_house(res);
 					}
 				}
 			}
+			
 			// Sleep for miner frame delay to simulate multiple miners
 			let sleep_time = dists.sample_dist(DistReason::MinerFrameForm).expect("Couldn't get miner frame form delay");	
 			let sleep_time = time::Duration::from_millis(sleep_time as u64);
@@ -235,7 +234,7 @@ impl Simulation {
 					Ok(order) => {
 						println!("Miner inserted a front-run order: {}", order.order_id);
 						// Register the new order to the ClearingHouse
-						let house = house.lock().expect("poop");
+						let house = house.lock().expect("couldnt lock house");
 						house.new_order(order).expect("Couldn't add front-run order to CH");
 					},
 					Err(e) => {

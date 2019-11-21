@@ -55,48 +55,49 @@ fn main() {
 	// Create a new Controller to dispatch our tasks
 	let mut controller = Controller::new();
 
+
+	// Create a vector to hold the handles to the threads
+	let mut thread_handles = Vec::new();
+
+
 	let distributions = parse_config_csv().expect("Couldn't parse config");
+
 	let consts = Constants {
 			batch_interval: 300,
 			num_investors: 5,
 			num_makers: 0,
 			block_size: 1000,
-			market_type: MarketType::FBA,
+			market_type: MarketType::CDA,
 			front_run_perc: 1.0,
 		};
+
 
 	// Initial state of the sim
 	let (simulation, miner) = Simulation::init_simulation(distributions, consts.clone());
 
 	
+	// Initialize an investor thread to repeat at intervals based on supplied distributions
+	let investor_task = Simulation::investor_task(simulation.dists.clone(), 
+												  Arc::clone(&simulation.house),
+												  Arc::clone(&simulation.mempool), 
+												  consts.market_type);
 
-	let mut shit = Controller::new();
+	thread_handles.push(investor_task);
+
+
+	// Initalize a miner task to be repeated on a fixed interval
 	let miner_task = Simulation::miner_task(miner, simulation.dists.clone(), 
 												   Arc::clone(&simulation.house), 
 												   Arc::clone(&simulation.mempool),
 												   Arc::clone(&simulation.bids_book),
 												   Arc::clone(&simulation.asks_book), 
 												   consts.clone());
-	shit.push(miner_task);
+	
+	controller.push(miner_task);
 
-	let mut controller = Vec::new();
+	controller.run();
 
-	let investor_task = Simulation::investor_task(simulation.dists.clone(), 
-												  Arc::clone(&simulation.house),
-												  Arc::clone(&simulation.mempool), 
-												  consts.market_type);
-	controller.push(investor_task);
-
-
-	let investor_task2 = Simulation::investor_task(simulation.dists.clone(), 
-												  Arc::clone(&simulation.house),
-												  Arc::clone(&simulation.mempool), 
-												  MarketType::CDA);
-	controller.push(investor_task2);
-
-	shit.run();
-
-	for h in controller {
+	for h in thread_handles {
 		h.join().unwrap();
 	}
 

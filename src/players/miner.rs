@@ -57,17 +57,23 @@ impl Miner {
 	}
 
 	/// 'Publishes' the Miner's frame by sequentially executing the orders in the frame
-	pub fn publish_frame(&mut self, bids: Arc<Book>, 
-						asks: Arc<Book>, m_t: MarketType, 
-						house: Arc<Mutex<ClearingHouse>>) -> Option<TradeResults> {
+	pub fn publish_frame(&mut self, bids: Arc<Book>, asks: Arc<Book>, m_t: MarketType) -> Option<Vec<TradeResults>> {
 		println!("Publishing Frame: {:?}", self.frame);
-		MemPoolProcessor::seq_process_orders(&mut self.frame, 
+		if let Some(results) = MemPoolProcessor::seq_process_orders(&mut self.frame, 
 											Arc::clone(&bids), 
 											Arc::clone(&asks), 
-											m_t.clone(),
-											Arc::clone(&house));
+											m_t.clone()) {
+			// TradeResults were received from processing orders, implying results from CDA market
+			return Some(results);
+		}
 		// Run auction after book has been updated (CDA is prcessed in seq_process_orders)
-		Auction::run_auction(bids, asks, m_t)
+		if let Some(auction_result) = Auction::run_auction(bids, asks, m_t) {
+			// Received some results from FBA or KLF auction, convert to same output format as CDA results
+			let mut v = Vec::<TradeResults>::new();
+			v.push(auction_result);
+			return Some(v);
+		} 
+		None
 	}
 
 	// Selects a random order from the frame and appends an identical order with higher block priority
