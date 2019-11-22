@@ -17,7 +17,7 @@ const MIN_PRICE: f64 = 0.0;
 const MAX_ITERS: usize = 1000;
 const PRECISION: i8 = 4;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PlayerUpdate {
 	pub payer_id: String,
 	pub vol_filler_id: String,
@@ -41,7 +41,7 @@ impl PlayerUpdate {
 	}
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TradeResults {
 	pub auction_type: MarketType,
 	pub uniform_price: Option<f64>,

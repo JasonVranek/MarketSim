@@ -291,6 +291,16 @@ impl Book {
     	*min_price = new_min;
     }
 
+    pub fn copy_orders(&self) -> Vec<Order> {
+        let orders = self.orders.lock().unwrap();
+        let mut v = Vec::new();
+        for o in orders.iter() {
+            v.push(o.clone());
+        }
+        v
+
+    }
+
     pub fn reset_best_price(&self) {
         match self.book_type {
             TradeType::Bid => {

@@ -93,6 +93,11 @@ impl History {
 		prev_histories.push(new_book_state);
 	}
 
+	pub fn save_results(&self, results: TradeResults) {
+		let mut clearings = self.clearings.lock().expect("save_results");
+		clearings.push((results, get_time()));
+	}
+
 	// Searches the hashmap of mempool orders
 	// Returns a copy of the order and the timestamp it was sent
 	pub fn find_orig_order(&self, order_id: u64) -> Option<(Order, Duration)> {

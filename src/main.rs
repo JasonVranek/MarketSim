@@ -12,6 +12,7 @@ use flow_rs::simulation::simulation::{Simulation};
 use std::sync::Arc;
 use flow_rs::simulation::config_parser::*;
 
+pub struct BlockNum{num:Arc<u64>}
 
 fn main() {
 	// Create a new Controller to dispatch our tasks
@@ -43,7 +44,8 @@ fn main() {
 	// Initialize an investor thread to repeat at intervals based on supplied distributions
 	let investor_task = Simulation::investor_task(simulation.dists.clone(), 
 												  Arc::clone(&simulation.house),
-												  Arc::clone(&simulation.mempool), 
+												  Arc::clone(&simulation.mempool),
+												  Arc::clone(&simulation.history), 
 												  consts.clone());
 
 	thread_handles.push(investor_task);
@@ -52,6 +54,7 @@ fn main() {
 	let maker_task = Simulation::maker_task(simulation.dists.clone(), 
 												  Arc::clone(&simulation.house),
 												  Arc::clone(&simulation.mempool), 
+												  Arc::clone(&simulation.history), 
 												  consts.clone());
 
 	controller.push(maker_task);
@@ -63,6 +66,8 @@ fn main() {
 												   Arc::clone(&simulation.mempool),
 												   Arc::clone(&simulation.bids_book),
 												   Arc::clone(&simulation.asks_book), 
+												   Arc::clone(&simulation.history),
+												   Arc::clone(&simulation.block_num), 
 												   consts.clone());
 	
 	controller.push(miner_task);

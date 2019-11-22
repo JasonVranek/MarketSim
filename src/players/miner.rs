@@ -1,4 +1,3 @@
-use crate::exchange::clearing_house::ClearingHouse;
 use crate::players::{Player,TraderT};
 use crate::order::order::Order;
 use crate::blockchain::mem_pool::MemPool;
@@ -33,7 +32,6 @@ impl Miner {
 			balance: 0.0,
 			inventory: 0.0,
 			player_type: TraderT::Miner,
-
 		}
 	}
 

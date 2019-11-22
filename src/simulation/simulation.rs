@@ -1,3 +1,4 @@
+use std::sync::Mutex;
 use crate::simulation::simulation_config::{Constants, Distributions, DistReason};
 use crate::controller::Task;
 use crate::exchange::clearing_house::ClearingHouse;
@@ -11,12 +12,26 @@ use crate::players::maker::Maker;
 use crate::exchange::MarketType;
 use crate::blockchain::order_processor::OrderProcessor;
 use crate::utility::gen_trader_id;
+use crate::simulation::simulation_history::History;
 
 
 use std::sync::Arc;
 use std::{time, thread};
 use std::thread::JoinHandle;
 
+
+pub struct BlockNum {pub num: Mutex<u64>}
+impl BlockNum {
+	pub fn new() -> BlockNum {
+		BlockNum {
+			num: Mutex::new(0),
+		}
+	}
+
+	pub fn inc_count(&self) {
+		*self.num.lock().unwrap() + 1;
+	}
+}
 
 
 pub struct Simulation {
@@ -26,13 +41,15 @@ pub struct Simulation {
 	pub mempool: Arc<MemPool>,
 	pub bids_book: Arc<Book>,
 	pub asks_book: Arc<Book>,
+	pub history: Arc<History>,
+	pub block_num: Arc<BlockNum>,
 }
 
 
 
 impl Simulation {
 	pub fn new(dists: Distributions, consts: Constants, house: ClearingHouse, 
-			   mempool: MemPool, bids_book: Book, asks_book: Book) -> Simulation {
+			   mempool: MemPool, bids_book: Book, asks_book: Book, history: History) -> Simulation {
 		Simulation {
 			dists: dists,
 			consts: consts,
@@ -40,6 +57,8 @@ impl Simulation {
 			mempool: Arc::new(mempool),
 			bids_book: Arc::new(bids_book),
 			asks_book: Arc::new(asks_book),
+			history: Arc::new(history),
+			block_num: Arc::new(BlockNum::new()),
 		}
 	}
 
@@ -49,6 +68,7 @@ impl Simulation {
 		let bids_book = Book::new(TradeType::Bid);
 		let asks_book = Book::new(TradeType::Ask);
 		let mempool = MemPool::new();
+		let history = History::new(consts.market_type);
 
 		// Initialize and register the miner to CH
 		let ch_miner = Miner::new(gen_trader_id(TraderT::Miner));
@@ -67,7 +87,7 @@ impl Simulation {
 		let mkrs = Simulation::setup_makers(&dists, &consts);
 		house.reg_n_makers(mkrs);
 		
-		(Simulation::new(dists, consts, house, mempool, bids_book, asks_book), miner)
+		(Simulation::new(dists, consts, house, mempool, bids_book, asks_book, history), miner)
 	}
 
 	/// Initializes Investor players. Randomly samples the maker's initial balance and inventory
@@ -115,7 +135,7 @@ impl Simulation {
 	/// A repeating task. Will randomly select an Investor from the ClearingHouse,
 	/// generate a bid/ask order priced via bid/ask distributions, send the order to 
 	/// the mempool, and then sleep until the next investor_arrival time.
-	pub fn investor_task(dists: Distributions, house: Arc<ClearingHouse>, mempool: Arc<MemPool>, consts: Constants) -> JoinHandle<()> {
+	pub fn investor_task(dists: Distributions, house: Arc<ClearingHouse>, mempool: Arc<MemPool>, history: Arc<History>, consts: Constants) -> JoinHandle<()> {
 		// Task::rpt_task(move || {
 		thread::spawn(move || {       
 			loop {
@@ -172,6 +192,8 @@ impl Simulation {
 				match house.new_order(order.clone()) {
 					Ok(()) => {
 						// println!("{:?}", order);
+						// Add the order to the simulation's history
+						history.mempool_order(order.clone());
 						// Send the order to the MemPool
 						OrderProcessor::conc_recv_order(order, Arc::clone(&mempool)).join().expect("Failed to send inv order");
 						
@@ -191,15 +213,20 @@ impl Simulation {
 	}
 
 	pub fn miner_task(mut miner: Miner, dists: Distributions, house: Arc<ClearingHouse>, 
-		mempool: Arc<MemPool>, bids: Arc<Book>, asks: Arc<Book>, consts: Constants) -> Task {
+		mempool: Arc<MemPool>, bids: Arc<Book>, asks: Arc<Book>, history: Arc<History>, block_num: Arc<BlockNum>, consts: Constants) -> Task {
 		println!("out miner task");
 		Task::rpt_task(move || {
 			println!("in miner task");
 			
 			// Publish the miner's current frame
 			if let Some(vec_results) = miner.publish_frame(Arc::clone(&bids), Arc::clone(&asks), consts.market_type) {
-				// Update the clearing house
+				// Save new book state to the history
+				history.clone_book_state(bids.copy_orders(), TradeType::Bid, *block_num.num.lock().unwrap());
+				history.clone_book_state(asks.copy_orders(), TradeType::Bid, *block_num.num.lock().unwrap());
+				block_num.inc_count();
+				// Update the clearing house and history
 				for res in vec_results {
+					history.save_results(res.clone());
 					house.update_house(res);
 				}
 			}
@@ -218,8 +245,12 @@ impl Simulation {
 				match miner.front_run() {
 					Ok(order) => {
 						println!("Miner inserted a front-run order: {}", order.order_id);
+						// Log the order as if it were sent to the mempool
+						history.mempool_order(order.clone());
+
 						// Register the new order to the ClearingHouse
 						house.new_order(order).expect("Couldn't add front-run order to CH");
+						
 					},
 					Err(e) => {
 						println!("{:?}", e);
@@ -234,7 +265,7 @@ impl Simulation {
 
 
 
-	pub fn maker_task(dists: Distributions, house: Arc<ClearingHouse>, mempool: Arc<MemPool>, consts: Constants) -> Task {
+	pub fn maker_task(dists: Distributions, house: Arc<ClearingHouse>, mempool: Arc<MemPool>, history: Arc<History>, consts: Constants) -> Task {
 		println!("out maker task");
 		Task::rpt_task(move || {
 			println!("in maker task");
@@ -291,7 +322,9 @@ impl Simulation {
 				// Add the order to the ClearingHouse which will register to the correct investor
 				match house.new_order(order.clone()) {
 					Ok(()) => {
-						println!("{:?}", order);
+						// println!("{:?}", order);
+						// Add the order to the simulation's history
+						history.mempool_order(order.clone());
 						// Send the order to the MemPool
 						OrderProcessor::conc_recv_order(order, Arc::clone(&mempool)).join().expect("Failed to send inv order");
 						
