@@ -86,6 +86,19 @@ impl ClearingHouse {
 		}
 	}
 
+	// Returns all player id's for the specified player_type
+	pub fn get_filtered_ids(&self, player_type: TraderT) -> Vec<String> {
+		let mut ids = Vec::new();
+		let players = self.players.lock().unwrap();
+		let mut rng = thread_rng();
+		let filtered: Vec<(_, _)> = players.iter().filter(|(_k, v)| v.get_player_type() == player_type).collect();
+		for (id, _o) in filtered {
+			ids.push(id.clone());
+		}
+		ids.shuffle(&mut rng);
+		ids
+	}
+
 
 	/// Adds to the player's balance and returns their updated balance
 	pub fn update_player_bal(&self, id: String, bal_to_add: f64) -> Option<f64> {

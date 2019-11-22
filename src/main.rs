@@ -27,11 +27,12 @@ fn main() {
 	let consts = Constants {
 			batch_interval: 3000,
 			num_investors: 100,
-			num_makers: 0,
+			num_makers: 5,
 			block_size: 1000,
-			market_type: MarketType::KLF,
+			market_type: MarketType::CDA,
 			front_run_perc: 1.0,
 			flow_order_offset: 5.0,
+			maker_prop_delay: 200,	// 200 ms delay after block for makers to act
 		};
 
 
@@ -46,6 +47,14 @@ fn main() {
 												  consts.clone());
 
 	thread_handles.push(investor_task);
+
+	// Initialize an maker task to repeat to be repeated on a fixed interval
+	let maker_task = Simulation::maker_task(simulation.dists.clone(), 
+												  Arc::clone(&simulation.house),
+												  Arc::clone(&simulation.mempool), 
+												  consts.clone());
+
+	controller.push(maker_task);
 
 
 	// Initalize a miner task to be repeated on a fixed interval
