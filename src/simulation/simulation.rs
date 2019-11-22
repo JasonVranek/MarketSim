@@ -239,7 +239,7 @@ impl Simulation {
 		// Snapshot order books
 
 		// Get all of the miner id's 
-
+		
 		// Shuffle ids
 
 		// For each miner
