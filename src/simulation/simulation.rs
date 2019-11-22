@@ -115,11 +115,11 @@ impl Simulation {
 	/// A repeating task. Will randomly select an Investor from the ClearingHouse,
 	/// generate a bid/ask order priced via bid/ask distributions, send the order to 
 	/// the mempool, and then sleep until the next investor_arrival time.
-	pub fn investor_task(dists: Distributions, house: Arc<ClearingHouse>, mempool: Arc<MemPool>, market_type: MarketType) -> JoinHandle<()> {
+	pub fn investor_task(dists: Distributions, house: Arc<ClearingHouse>, mempool: Arc<MemPool>, consts: Constants) -> JoinHandle<()> {
 		// Task::rpt_task(move || {
 		thread::spawn(move || {       
 			loop {
-				println!("In inv task: {:?}", market_type);
+				println!("In inv task: {:?}", consts.market_type);
 				// Randomly select an investor
 				let trader_id = house.get_rand_player_id(TraderT::Investor).expect("Couldn't get rand investor");
 
@@ -139,7 +139,7 @@ impl Simulation {
 				let quantity = dists.sample_dist(DistReason::InvestorVolume).expect("couldn't sample vol");
 
 				// Determine if were using flow or limit order
-				let ex_type = match market_type {
+				let ex_type = match consts.market_type {
 					MarketType::CDA|MarketType::FBA => ExchangeType::LimitOrder,
 					MarketType::KLF => ExchangeType::FlowOrder,
 				};
@@ -149,7 +149,10 @@ impl Simulation {
 					ExchangeType::LimitOrder => (price, price),
 					ExchangeType::FlowOrder => {
 						// How to calculate flow order price?
-						(0.0, 0.0)
+						match trade_type {
+							TradeType::Ask => (price, price + consts.flow_order_offset),
+							TradeType::Bid => (price - consts.flow_order_offset, price),
+						}
 					}
 				};
 

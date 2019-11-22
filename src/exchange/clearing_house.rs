@@ -298,13 +298,10 @@ impl ClearingHouse {
 	/// If they updated volume <=0, the order is dropped from the player's list
 	pub fn update_player_order_vol(&self, trader_id: String, order_id: u64, vol_to_add: f64) -> Result<(), &'static str> {
 		println!("Updating {}'s order {} volume by {}", trader_id, order_id, vol_to_add);
+		self.report_player(trader_id.clone());
 		let mut players = self.players.lock().unwrap();
 		if let Some(player) = players.get_mut(&trader_id) {
-			let res = player.update_order_vol(order_id, vol_to_add);
-				match res {
-					Ok(_) => return Ok(()),
-					Err(e) => return Err(e),
-				}
+			player.update_order_vol(order_id, vol_to_add)
 		} else {
 			return Err("Couldn't find trader to add order");
 		}

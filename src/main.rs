@@ -26,11 +26,12 @@ fn main() {
 
 	let consts = Constants {
 			batch_interval: 3000,
-			num_investors: 5,
+			num_investors: 100,
 			num_makers: 0,
 			block_size: 1000,
-			market_type: MarketType::FBA,
+			market_type: MarketType::KLF,
 			front_run_perc: 1.0,
+			flow_order_offset: 5.0,
 		};
 
 
@@ -42,7 +43,7 @@ fn main() {
 	let investor_task = Simulation::investor_task(simulation.dists.clone(), 
 												  Arc::clone(&simulation.house),
 												  Arc::clone(&simulation.mempool), 
-												  consts.market_type);
+												  consts.clone());
 
 	thread_handles.push(investor_task);
 

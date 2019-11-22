@@ -104,7 +104,9 @@ impl Book {
 
 	pub fn cancel_order_by_id(&self, id: u64) -> Result<(), &'static str> {
 		// Acquire the lock
+        println!("looking for lock");
         let mut orders = self.orders.lock().expect("couldn't acquire lock cancelling order");
+        println!("got lock");
         // Search for existing order's index
         let order_index: Option<usize> = orders.iter().position(|o| &o.order_id == &id);
 
@@ -114,10 +116,14 @@ impl Book {
         	println!("ERROR: order not found to cancel: {:?}", id);
         	return Err("ERROR: order not found to cancel");
         }
-
 		// Update the best price 
-		let best_price = orders.last().unwrap().price;
-		self.update_best_price(best_price);
+		if let Some(last_order) = orders.last(){ 
+            let best_price = last_order.price;
+            self.update_best_price(best_price);
+        } else {
+            self.reset_best_price();
+        }
+		
 
         Ok(())
 	}
@@ -283,6 +289,31 @@ impl Book {
     	// Update the book with new min price
     	let mut min_price = self.min_price.lock().unwrap();
     	*min_price = new_min;
+    }
+
+    pub fn reset_best_price(&self) {
+        match self.book_type {
+            TradeType::Bid => {
+                {
+                    let mut minp = self.min_price.lock().unwrap();
+                    *minp = MAX;
+                }
+                {
+                    let mut maxp = self.max_price.lock().unwrap();
+                    *maxp = 0.0;
+                }
+            }
+            TradeType::Ask => {
+                {
+                    let mut minp = self.min_price.lock().unwrap();
+                    *minp = 0.0;
+                }
+                {
+                    let mut maxp = self.max_price.lock().unwrap();
+                   *maxp = MAX;
+                }
+            }
+        }
     }
 }
 

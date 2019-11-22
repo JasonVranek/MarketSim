@@ -83,12 +83,13 @@ impl Player for Investor {
 	// Updates the order's volume and removes it if the vol <= 0
 	fn update_order_vol(&mut self, o_id: u64, vol_to_add: f64) -> Result<(), &'static str> {
 		// Get the lock on the player's orders
-		let mut orders = self.orders.lock().expect("couldn't acquire lock cancelling order");
+		let mut orders = self.orders.lock().expect("couldn't acquire lock on orders");
 		// Find the index of the existing order using the order_id
 		let order_index: Option<usize> = orders.iter().position(|o| &o.order_id == &o_id);
 		
 		if let Some(i) = order_index {
         	orders[i].quantity += vol_to_add;
+        	println!("new quantity: {}", orders[i].quantity);
         	if orders[i].quantity <= 0.0 {
         		orders.remove(i);
         	}

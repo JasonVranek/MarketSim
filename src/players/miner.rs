@@ -68,7 +68,7 @@ impl Miner {
 		}
 		// Run auction after book has been updated (CDA is prcessed in seq_process_orders)
 		if let Some(auction_result) = Auction::run_auction(bids, asks, m_t) {
-			// Received some results from FBA or KLF auction, convert to same output format as CDA results
+			// Received some results from FBA or KLF auction, convert to same vector output format as CDA results
 			let mut v = Vec::<TradeResults>::new();
 			v.push(auction_result);
 			return Some(v);

@@ -682,31 +682,63 @@ impl Auction {
 	// helper function to calculate the changes to each player following the flow auction
 	pub fn flow_player_updates(clearing_price: f64, bids: Arc<Book>, asks: Arc<Book>) -> Vec<PlayerUpdate> {
 		let mut updates = Vec::<PlayerUpdate>::new();
-		let bid_orders = bids.orders.lock().expect("couldn't lock");
-		for bid in bid_orders.iter() {
-			let v = bid.calc_flow_demand(clearing_price);
-			updates.push(PlayerUpdate::new(
-					bid.trader_id.clone(),
-					format!("N/A"), // No filler id -> assuming trade with ex (update later)
-					bid.order_id,
-					0,				// No filler order -> assuming trade with ex (update later)
-					clearing_price,
-					v
-				));
+		let mut cancel_bids = Vec::<u64>::new();
+		let mut cancel_asks = Vec::<u64>::new();
+		{
+			let mut bid_orders = bids.orders.lock().expect("couldn't lock");
+			for bid in bid_orders.iter_mut() {
+				let v = bid.calc_flow_demand(clearing_price);
+				// Generate the PlayerUpdate for the ClearingHouse to update the player
+				updates.push(PlayerUpdate::new(
+						bid.trader_id.clone(),
+						format!("N/A"), // No filler id -> assuming trade with ex (update later)
+						bid.order_id,
+						0,				// No filler order -> assuming trade with ex (update later)
+						clearing_price,
+						v
+					));
+				// Modify the order in the order book
+				bid.quantity -= v;
+				if bid.quantity <= 0.0 {
+					println!("cancelling flow bid");
+					cancel_bids.push(bid.order_id);
+				}
+			}
+		}
+		{
+			let mut ask_orders = asks.orders.lock().expect("couldn't lock");
+			for ask in ask_orders.iter_mut() {
+				let v = ask.calc_flow_supply(clearing_price);
+				// Generate the PlayerUpdate for the ClearingHouse to update the player
+				updates.push(PlayerUpdate::new(
+						format!("N/A"), // No filler id -> assuming trade with ex (update later)
+						ask.trader_id.clone(),
+						0,				// No filler order -> assuming trade with ex (update later)
+						ask.order_id,
+						clearing_price,
+						v
+					));
+				// Modify the order in the order book
+				ask.quantity -= v;
+				if ask.quantity <= 0.0 {
+					println!("cancelling flow ask");
+					cancel_asks.push(ask.order_id);
+				}
+			}
 		}
 
-		let ask_orders = asks.orders.lock().expect("couldn't lock");
-		for ask in ask_orders.iter() {
-			let v = ask.calc_flow_supply(clearing_price);
-			updates.push(PlayerUpdate::new(
-					format!("N/A"), // No filler id -> assuming trade with ex (update later)
-					ask.trader_id.clone(),
-					0,				// No filler order -> assuming trade with ex (update later)
-					ask.order_id,
-					clearing_price,
-					v
-				));
+		println!("cancelling bids:{:?} and asks:{:?}", cancel_bids, cancel_asks);
+
+		// Cancel all of the orders that have been fully filled
+		for id in cancel_bids {
+			bids.cancel_order_by_id(id).expect("Error cancelling filled flow order");
 		}
+		for id in cancel_asks {
+			asks.cancel_order_by_id(id).expect("Error cancelling filled flow order");
+		}
+
+		println!("here");
+
 		updates
 	}
 
