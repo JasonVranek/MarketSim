@@ -4,7 +4,7 @@ use std::sync::Mutex;
 
 /// A threadsafe FIFO queue to store unprocessed messages arriving from players.
 pub struct MemPool {
-    items: Mutex<Vec<Order>>,
+    pub items: Mutex<Vec<Order>>,
 }
 
 impl MemPool {

@@ -2,6 +2,9 @@ use crate::players::{Player, TraderT};
 use std::sync::Mutex;
 use crate::order::order::{Order};
 
+use std::any::Any;
+
+
 /// A struct for the Maker player. 
 pub struct Maker {
 	pub trader_id: String,
@@ -27,6 +30,10 @@ impl Maker {
 
 
 impl Player for Maker {
+	fn as_any(&self) -> &dyn Any {
+		self
+	}
+	
 	fn get_id(&self) -> String {
 		self.trader_id.clone()
 	}

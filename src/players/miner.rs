@@ -7,7 +7,7 @@ use crate::exchange::MarketType;
 use crate::exchange::exchange_logic::{Auction, TradeResults};
 use crate::utility::{gen_order_id};
 
-
+use std::any::Any;
 use std::sync::{Mutex, Arc};
 use rand::{thread_rng};
 use rand::seq::SliceRandom;
@@ -97,6 +97,10 @@ impl Miner {
 
 
 impl Player for Miner {
+	fn as_any(&self) -> &dyn Any {
+		self
+	}
+
 	fn get_id(&self) -> String {
 		self.trader_id.clone()
 	}

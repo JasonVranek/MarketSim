@@ -1,4 +1,3 @@
-use crate::order::order_book::Book;
 use crate::exchange::exchange_logic::TradeResults;
 use crate::exchange::MarketType;
 use crate::order::order::{Order, TradeType};
@@ -9,6 +8,7 @@ use std::time::Duration;
 
 
 // Tracks the essential information from an order in the order book
+#[derive(Clone)]
 pub struct Entry {
 	pub order_id: u64,
 	pub quantity: f64,	// Only thing that changes with order
@@ -72,8 +72,8 @@ pub struct Data {
 	pub clearing_price: Option<f64>,
 	pub best_bid: Option<Order>,
 	pub best_ask: Option<Order>,
-	pub current_bids: Book,
-	pub current_asks: Book,
+	pub current_bids: Vec<Order>,
+	pub current_asks: Vec<Order>,
 	pub asks_volume: f64,
 	pub bids_volume: f64,
 	pub current_pool: Vec<Order>,
@@ -243,21 +243,6 @@ impl History {
 		(bids_avg, asks_avg)
 	}
 
-	// Looks at current MemPool orders and current orders in OrderBook
-	// pub fn average_current_prices(&self, pool: Vec<Order>) {
-	// 	// Get average from current mempool
-	// 	let (avg_bids, avg_asks) = History::average_order_prices(&pool, self.market_type);
-	// 	let mut book_bprice: Option<f64> = None;
-	// 	let mut book_aprice: Option<f64> = None;
-		
-	// 	// Calculate the average prices from the orders in order book
-	// 	if let Some(last_seen_book) = self.order_books.lock().expect("average_current_prices").last() {
-	// 		book_bprice = last_seen_book.avg_bids_price;
-	// 		book_bprice = last_seen_book.avg_asks_price;
-	// 	}
-
-	// 	// Do something with these prices...
-	// }
 
 	pub fn get_last_clearing_price(&self) -> Option<f64> {
 		let clearings = self.clearings.lock().unwrap();
@@ -292,10 +277,14 @@ impl History {
 			}
 
 			// Look at second to last book and get best bid or best ask
-			let shallow_book = books.get(last_index - 1).expect("get_best_orders");
-			match shallow_book.book_type {
-				TradeType::Bid => best_bid = last_book.best_order.clone(),
-				TradeType::Ask => best_ask = last_book.best_order.clone(),
+			let next_book = books.get(last_index - 1).expect("get_best_orders");
+			match next_book.book_type {
+				TradeType::Bid => {
+					best_bid = next_book.best_order.clone();
+				}
+				TradeType::Ask => {
+					best_ask = next_book.best_order.clone();
+				}
 			}
 			return (best_bid, best_ask);
 		} else {
@@ -304,35 +293,96 @@ impl History {
 		
 	}
 
-	pub fn get_current_orders(&self) {
-		
+	// Returns the most recent list of bids and asks and their volumes: 
+	// -> (Vec<bids>, Vec<asks>, bids_volume, asks_volume)
+	pub fn get_current_orders(&self) -> (Vec<Order>, Vec<Order>, f64, f64) {
+		let mut bids_out = Vec::<Order>::new();
+		let mut asks_out = Vec::<Order>::new();
+		let mut bids_entries = Vec::<Entry>::new();
+		let mut asks_entries = Vec::<Entry>::new();
+		let books = self.order_books.lock().unwrap();
+		let last_index = books.len() - 1;
+		{
+			if last_index == 0 {
+				// only have one book to look at
+				let shallow_book = books.last().expect("get_current_orders");
+				match shallow_book.book_type {
+					TradeType::Bid => {
+						bids_entries = shallow_book.orders.clone();
+					}
+					TradeType::Ask => {
+						asks_entries = shallow_book.orders.clone();
+					}
+				}
+			} else if last_index > 0 {
+				// More than one book, return two most recent list of entires
+				// Look at the last book in the history and get best bid or best ask from it
+				let last_book = books.last().expect("get_current_orders");
+				match last_book.book_type {
+					TradeType::Bid => {
+						bids_entries = last_book.orders.clone();
+					}
+					TradeType::Ask => {
+						asks_entries = last_book.orders.clone();
+					}
+				}
+
+				// Look at second to last book and get best bid or best ask
+				let next_book = books.get(last_index - 1).expect("get_current_orders");
+				match next_book.book_type {
+					TradeType::Bid => {
+						bids_entries = next_book.orders.clone();
+					}
+					TradeType::Ask => {
+						asks_entries = next_book.orders.clone();
+					}
+				}
+			} else {
+				// No order books, return empty vecs
+				return (bids_out, asks_out, 0.0, 0.0);
+			}
+		}
+		let (mut bids_vol, mut asks_vol) = (0.0, 0.0);
+		// Drop lock on the order_books, get the original orders from the entries
+		for entry in bids_entries {
+			bids_vol += entry.quantity;
+			if let Some((order, _time)) = self.find_orig_order(entry.order_id) {
+				bids_out.push(order);
+			}
+		}
+
+		for entry in asks_entries {
+			asks_vol += entry.quantity;
+			if let Some((order, _time)) = self.find_orig_order(entry.order_id) {
+				asks_out.push(order);
+			}
+		}
+		return (bids_out, asks_out, bids_vol, asks_vol);
 	}
 
-	pub fn produce_data(&self) -> (Data, Stats) {
-		(self.decision_data(), self.inference_data())
+	pub fn produce_data(&self, mempool: Vec<Order>) -> (Data, Stats) {
+		(self.decision_data(mempool), self.inference_data())
 	}
 
 	pub fn inference_data(&self) -> Stats {
 		unimplemented!();
 	}
 
-	pub fn decision_data(&self) -> Data {
-		unimplemented!();
-
+	pub fn decision_data(&self, current_pool: Vec<Order>) -> Data {
 		let clearing_price = self.get_last_clearing_price();
 		let (best_bid, best_ask) = self.get_best_orders();
-		let (current_bids, current_asks) = self.get_current_orders();
+		let (current_bids, current_asks, bids_volume, asks_volume) = self.get_current_orders();
 
-		// Data {
-		// 	clearing_price, 
-		// 	best_bid,
-		// 	best_ask,
-		// 	current_bids,
-		// 	current_asks,
-		// 	asks_volume,
-		// 	bids_volume,
-		// 	current_pool,
-		// }
+		Data {
+			clearing_price, 
+			best_bid,
+			best_ask,
+			current_bids,
+			current_asks,
+			asks_volume,
+			bids_volume,
+			current_pool,
+		}
 	}
 
 

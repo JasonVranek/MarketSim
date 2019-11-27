@@ -1,4 +1,6 @@
 use crate::order::order::Order;
+use std::any::Any;
+
 
 pub mod investor;
 pub mod maker;
@@ -48,6 +50,8 @@ pub trait Player {
 	fn copy_orders(&self) -> Vec<Order>;
 
 	fn get_player_type(&self) -> TraderT;
+
+	fn as_any(&self) -> &dyn Any;
 }
 
 

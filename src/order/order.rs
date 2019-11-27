@@ -205,6 +205,32 @@ mod tests {
 		assert_eq!(order.quantity, 500.0);
 		assert_eq!(order.gas, 0.05);
 	}
+
+	#[test]
+	fn test_flow_calc_supply() {
+		let order = Order::new(
+			String::from("trader_id"),
+			OrderType::Enter,
+			TradeType::Ask,
+			ExchangeType::FlowOrder,
+			72.0,
+			100.0,
+			50.0,
+			500.0,
+			0.05,
+		);
+
+		assert_eq!(order.trader_id, "trader_id");
+		assert_eq!(order.order_type, OrderType::Enter);
+		assert_eq!(order.trade_type, TradeType::Ask);
+		assert_eq!(order.ex_type, ExchangeType::FlowOrder);
+		assert_eq!(order.p_low, 72.0);
+		assert_eq!(order.p_high, 100.0);
+		assert_eq!(order.quantity, 500.0);
+		assert_eq!(order.gas, 0.05);
+		println!("{:?}", order.calc_flow_supply(81.09048166079447));
+		assert_eq!(order.calc_flow_supply(81.09048166079447), 162.33002965704407);
+	}
 }
 
 

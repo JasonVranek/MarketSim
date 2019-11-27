@@ -13,6 +13,7 @@ use rand::seq::SliceRandom;
 
 
 
+
 /// The struct for keeping track of active players and their balances and inventories
 /// ClearingHouse is a HashMap indexed by each player's trader_id
 pub struct ClearingHouse {
@@ -72,6 +73,27 @@ impl ClearingHouse {
 			Some(player) => Some(player),
 			None => None,
 		}
+	}
+
+	// Gets the maker and 
+	pub fn maker_new_order(&self, id: String) {
+		match self.get_player(id.clone()) {
+			Some(player) => {
+				if let Some(maker) = player.as_any().downcast_ref::<Maker>() {
+					// Was able to find the maker in the clearing house and cast Player object to Maker
+					
+				} else {
+					// Couldn't downcast to maker
+					println!("Couldn't downcast to maker: {}", id);
+				}
+				// Got a reference to the maker 
+
+
+			},
+			None => {
+				println!("Couldn't get maker: {}", id);
+			}
+		} 
 	}
 
 	// Shuffles through the players matching the player_type and returns their id

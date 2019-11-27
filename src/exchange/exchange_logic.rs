@@ -699,6 +699,7 @@ impl Auction {
 					));
 				// Modify the order in the order book
 				bid.quantity -= v;
+				println!("bid:{}, p_l: {}, p_h:{}, trade_vol:{}, old_vol:{}, new_vol:{}", bid.order_id, bid.p_low, bid.p_high, v, bid.quantity + v, bid.quantity);
 				if bid.quantity <= 0.0 {
 					println!("cancelling flow bid");
 					cancel_bids.push(bid.order_id);
@@ -720,6 +721,7 @@ impl Auction {
 					));
 				// Modify the order in the order book
 				ask.quantity -= v;
+				println!("ask:{}, p_l: {}, p_h:{}, trade_vol:{}, old_vol:{}, new_vol:{}", ask.order_id, ask.p_low, ask.p_high, v, ask.quantity + v, ask.quantity);
 				if ask.quantity <= 0.0 {
 					println!("cancelling flow ask");
 					cancel_asks.push(ask.order_id);

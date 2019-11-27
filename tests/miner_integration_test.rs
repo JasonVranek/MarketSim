@@ -169,7 +169,12 @@ fn test_cda_ask_transaction() {
 		last_gas = order.gas;
 	}
 
-	miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type, Arc::clone(&house));
+	let vec_results = miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type).expect("shouldn't be none");
+
+	// update the players with CDA results
+	for res in vec_results {
+		house.update_house(res);
+	}
 
 	// Only one ask should cross and fill, other will remain
 	assert_eq!(asks_book.len(), 1);
@@ -264,7 +269,12 @@ fn test_cda_bid_transaction() {
 	}
 
 	// Process the bid order
-	miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type, Arc::clone(&house));
+	let vec_results = miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type).expect("shouldn't be none");
+
+	// update the players with CDA results
+	for res in vec_results {
+		house.update_house(res);
+	}
 
 	// Only one bid should cross and fill, other will remain
 	assert_eq!(asks_book.len(), 0);
@@ -320,13 +330,13 @@ pub fn test_klf_crossing_price() {
 	miner.make_frame(Arc::clone(&pool), BLOCK_SIZE);
 
 	// Process the bid order
-	let house = Arc::new(common::setup_clearing_house());
-	let results = miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type, Arc::clone(&house)).unwrap();
+	let _house = Arc::new(common::setup_clearing_house());
+	let results = miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type).unwrap();
 
-	assert_eq!(bids_book.len(), 100);
+	assert_eq!(bids_book.len(), 82);
 	assert_eq!(asks_book.len(), 100);
 
-	assert!(Auction::equal_e(&results.uniform_price.unwrap(), &81.09048166081236));
+	assert!(Auction::equal_e(&results.last().unwrap().uniform_price.unwrap(), &81.09048166081236));
 }
 
 #[test]
@@ -393,10 +403,12 @@ pub fn test_klf_update_chouse() {
 	// Create frame from bid order in mempool
 	miner.make_frame(Arc::clone(&pool), BLOCK_SIZE);
 
-	// Process the bid order
-	let results = miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type, Arc::clone(&house)).unwrap();
+	// Process the orders
+	let mut results = miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type).unwrap();
+	let results = results.pop().unwrap();
 
-	assert_eq!(bids_book.len(), 100);
+	// clearing price is < asks p_high, so none will be fully filled
+	assert_eq!(bids_book.len(), 82);
 	assert_eq!(asks_book.len(), 100);
 
 	assert!(Auction::equal_e(&results.uniform_price.unwrap(), &81.09048166081236));
@@ -481,7 +493,8 @@ pub fn test_fba_update_chouse() {
 	miner.make_frame(Arc::clone(&pool), BLOCK_SIZE);
 
 	// Process the bid order
-	let results = miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type, Arc::clone(&house)).unwrap();
+	let mut results = miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type).unwrap();
+	let results = results.pop().unwrap();
 
 	// The bid1's volume was filled so it should have been removed from the book
 	assert_eq!(bids_book.len(), 1);
@@ -561,8 +574,9 @@ pub fn test_fba_uniform_price1() {
 	miner.make_frame(Arc::clone(&pool), BLOCK_SIZE);
 
 	// Process the orders order
-	let mut house = Arc::new(common::setup_clearing_house());
-	let results = miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type, Arc::clone(&house)).unwrap();
+	let _house = Arc::new(common::setup_clearing_house());
+	let results = miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type).unwrap();
+	let results = results.get(results.len() - 1).unwrap();
 
 	// The bid1's volume was filled so it should have been removed from the book
 	assert_eq!(bids_book.len(), 1);
@@ -574,7 +588,7 @@ pub fn test_fba_uniform_price1() {
 
 	println!("{:?}", results);
 
-	if let Some(player_updates) = results.cross_results {
+	if let Some(player_updates) = &results.cross_results {
 		// Should have received updates
 		assert_ne!(0, player_updates.len());
 		for pu in player_updates {
@@ -635,8 +649,9 @@ pub fn test_fba_uniform_price2() {
 	miner.make_frame(Arc::clone(&pool), BLOCK_SIZE);
 
 	// Process the orders order
-	let mut house = Arc::new(common::setup_clearing_house());
-	let results = miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type, Arc::clone(&house)).unwrap();
+	let _house = Arc::new(common::setup_clearing_house());
+	let results = miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type).unwrap();
+	let results = results.get(results.len() - 1).unwrap();
 
 	// The bid that was filled is removed
 	assert_eq!(bids_book.len(), 1);
@@ -645,7 +660,7 @@ pub fn test_fba_uniform_price2() {
 
 	assert!(Auction::equal_e(&results.uniform_price.unwrap(), &12.50));
 
-	if let Some(player_updates) = results.cross_results {
+	if let Some(player_updates) = &results.cross_results {
 		// player_updates[0] -> bid1 + ask1
 		assert_eq!(player_updates[0].payer_order_id, bid1_id);
 		assert_eq!(player_updates[0].vol_filler_order_id, ask1_id);
@@ -718,8 +733,9 @@ pub fn test_fba_uniform_price3() {
 	miner.make_frame(Arc::clone(&pool), BLOCK_SIZE);
 
 	// Process the orders order
-	let mut house = Arc::new(common::setup_clearing_house());
-	let results = miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type, Arc::clone(&house)).unwrap();
+	let _house = Arc::new(common::setup_clearing_house());
+	let results = miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type).unwrap();
+	let results = results.get(results.len() - 1).unwrap();
 
 	assert_eq!(bids_book.len(), 2);
 	// Both asks that were completely filled will be removed
@@ -730,7 +746,7 @@ pub fn test_fba_uniform_price3() {
 
 	assert_eq!(results.agg_supply, 60.0);
 
-	if let Some(player_updates) = results.cross_results {
+	if let Some(player_updates) = &results.cross_results {
 		// player_updates[0] -> bid1 + ask1
 		assert_eq!(player_updates[0].payer_order_id, bid1_id);
 		assert_eq!(player_updates[0].vol_filler_order_id, ask1_id);
@@ -779,8 +795,9 @@ pub fn test_fba_no_cross() {
 	miner.make_frame(Arc::clone(&pool), BLOCK_SIZE);
 
 	// Process the orders order
-	let mut house = Arc::new(common::setup_clearing_house());
-	let results = miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type, Arc::clone(&house)).unwrap();
+	let _house = Arc::new(common::setup_clearing_house());
+	let results = miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type).unwrap();
+	let results = results.get(results.len() - 1).unwrap();
 
 	assert_eq!(bids_book.len(), 0);
 	assert_eq!(asks_book.len(), 2);
@@ -835,8 +852,9 @@ pub fn test_fba_vertical_cross() {
 	miner.make_frame(Arc::clone(&pool), BLOCK_SIZE);
 
 	// Process the orders order
-	let mut house = Arc::new(common::setup_clearing_house());
-	let results = miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type, Arc::clone(&house)).unwrap();
+	let _house = Arc::new(common::setup_clearing_house());
+	let results = miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type).unwrap();
+	let results = results.get(results.len() - 1).unwrap();
 
 	assert_eq!(bids_book.len(), 1);
 	assert_eq!(asks_book.len(), 2);
@@ -844,7 +862,7 @@ pub fn test_fba_vertical_cross() {
 	println!("{:?}", results);
 	assert!(Auction::equal_e(&results.uniform_price.unwrap(), &11.30));
 
-	if let Some(player_updates) = results.cross_results {
+	if let Some(player_updates) = &results.cross_results {
 		for pu in player_updates {
 			assert_eq!(pu.payer_order_id, bid1_id);
 			assert_eq!(pu.vol_filler_order_id, ask1_id);
@@ -911,8 +929,9 @@ pub fn test_fba_vertical_cross2() {
 	miner.make_frame(Arc::clone(&pool), BLOCK_SIZE);
 
 	// Process the orders order
-	let mut house = Arc::new(common::setup_clearing_house());
-	let results = miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type, Arc::clone(&house)).unwrap();
+	let _house = Arc::new(common::setup_clearing_house());
+	let results = miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type).unwrap();
+	let results = results.get(results.len() - 1).unwrap();
 
 	assert_eq!(bids_book.len(), 1);
 	// Both asks that were completely filled will be removed
@@ -923,7 +942,7 @@ pub fn test_fba_vertical_cross2() {
 
 	assert_eq!(results.agg_supply, 61.0);
 
-	if let Some(player_updates) = results.cross_results {
+	if let Some(player_updates) = &results.cross_results {
 		// player_updates[0] -> bid1 + ask1
 		assert_eq!(player_updates[0].payer_order_id, bid1_id);
 		assert_eq!(player_updates[0].vol_filler_order_id, ask1_id);
@@ -989,8 +1008,9 @@ pub fn test_fba_horizontal_cross() {
 	miner.make_frame(Arc::clone(&pool), BLOCK_SIZE);
 
 	// Process the orders order
-	let mut house = Arc::new(common::setup_clearing_house());
-	let results = miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type, Arc::clone(&house)).unwrap();
+	let _house = Arc::new(common::setup_clearing_house());
+	let results = miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type).unwrap();
+	let results = results.get(results.len() - 1).unwrap();
 
 	assert_eq!(bids_book.len(), 1);
 	assert_eq!(asks_book.len(), 1);
@@ -998,7 +1018,7 @@ pub fn test_fba_horizontal_cross() {
 	println!("{:?}", results);
 	assert!(Auction::equal_e(&results.uniform_price.unwrap(), &12.25));
 
-	if let Some(player_updates) = results.cross_results {
+	if let Some(player_updates) = &results.cross_results {
 		assert_eq!(player_updates[0].payer_order_id, bid1_id);
 		assert_eq!(player_updates[0].vol_filler_order_id, ask1_id);
 		assert_eq!(player_updates[0].volume, 50.0);
@@ -1063,8 +1083,9 @@ pub fn test_fba_horizontal_cross2() {
 	miner.make_frame(Arc::clone(&pool), BLOCK_SIZE);
 
 	// Process the orders order
-	let mut house = Arc::new(common::setup_clearing_house());
-	let results = miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type, Arc::clone(&house)).unwrap();
+	let _house = Arc::new(common::setup_clearing_house());
+	let results = miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type).unwrap();
+	let results = results.get(results.len() - 1).unwrap();
 
 	assert_eq!(bids_book.len(), 1);
 	// Both asks that were completely filled will be removed
@@ -1075,7 +1096,7 @@ pub fn test_fba_horizontal_cross2() {
 
 	assert_eq!(results.agg_supply, 60.0);
 
-	if let Some(player_updates) = results.cross_results {
+	if let Some(player_updates) = &results.cross_results {
 		// player_updates[0] -> bid1 + ask1
 		assert_eq!(player_updates[0].payer_order_id, bid1_id);
 		assert_eq!(player_updates[0].vol_filler_order_id, ask1_id);

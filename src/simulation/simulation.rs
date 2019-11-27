@@ -349,73 +349,29 @@ impl Simulation {
 			// Select all Makers
 			let maker_ids = house.get_filtered_ids(TraderT::Maker);
 
-			// Look through Simulation History for the average prices
-			// let history.average_seen_prices(1.0);
-
-			for trader_id in maker_ids {
-				// Decide bid or ask
-				let trade_type = match Distributions::fifty_fifty() {
-					0 => TradeType::Ask,
-					_ => TradeType::Bid,
-				};
-
-				// Sample order price from bid/ask distribution
-				let price = match trade_type {
-					TradeType::Ask => dists.sample_dist(DistReason::AsksCenter).expect("couldn't sample price"),
-					TradeType::Bid => dists.sample_dist(DistReason::BidsCenter).expect("couldn't sample price"),
-				};
-
-				// Sample order volume from bid/ask distribution
-				let quantity = dists.sample_dist(DistReason::InvestorVolume).expect("couldn't sample vol");
-
-				// Determine if were using flow or limit order
-				let ex_type = match consts.market_type {
-					MarketType::CDA|MarketType::FBA => ExchangeType::LimitOrder,
-					MarketType::KLF => ExchangeType::FlowOrder,
-				};
-
-				// Set the p_low and p_high to the price for limit orders
-				let (p_l, p_h) = match ex_type {								
-					ExchangeType::LimitOrder => (price, price),
-					ExchangeType::FlowOrder => {
-						// How to calculate flow order price?
-						match trade_type {
-							TradeType::Ask => (price, price + consts.flow_order_offset),
-							TradeType::Bid => (price - consts.flow_order_offset, price),
-						}
-					}
-				};
-
-				// Generate the order
-				let order = Order::new(trader_id.clone(), 
-									   OrderType::Enter,
-							   	       trade_type,
-								       ex_type,
-								       p_l,
-								       p_h,
-								       price,
-								       quantity,
-								       dists.sample_dist(DistReason::InvestorGas).expect("Couldn't sample gas")
-				);
-
-
-				// Add the order to the ClearingHouse which will register to the correct investor
-				match house.new_order(order.clone()) {
-					Ok(()) => {
-						// println!("{:?}", order);
-						// Add the order to the simulation's history
-						history.mempool_order(order.clone());
-						// Send the order to the MemPool
-						OrderProcessor::conc_recv_order(order, Arc::clone(&mempool)).join().expect("Failed to send inv order");
-						
-					},
-					Err(e) => {
-						// If we failed to add the order to the player, don't send it to mempool
-						println!("{:?}", e);
-					},
-				}
+			// Copy the current mempool
+			let pool;
+			{
+				let mempool = mempool.items.lock().expect("maker task pool");
+				pool = mempool.clone();
 
 			}
+
+			// use History to produce inference and decision data
+			let (decision_data, inference_data) = history.produce_data(pool);
+
+			// iterate through each maker and produce an order using the decision and inference data
+			for id in maker_ids {
+				// Each maker interprets the data to produce their order based on their type 
+				// get mutable reference to the maker
+				let maker_order = house.maker_new_order(id.clone());
+
+				// register the order to the clearing house
+
+				// register the order to the history
+			}
+
+			
 			
 		}, consts.batch_interval + consts.maker_prop_delay)
 	}

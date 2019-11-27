@@ -2,6 +2,8 @@ use crate::players::{Player,TraderT};
 use std::sync::Mutex;
 use crate::order::order::{Order};
 
+use std::any::Any;
+
 
 
 /// A struct for the Investor player. 
@@ -31,6 +33,9 @@ impl Investor {
 }
 
 impl Player for Investor {
+	fn as_any(&self) -> &dyn Any {
+		self
+	}
 
 	fn get_id(&self) -> String {
 		self.trader_id.clone()
