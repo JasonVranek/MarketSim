@@ -1,8 +1,23 @@
+use crate::simulation::simulation_history::{PriorData, LikelihoodStats};
 use crate::players::{Player, TraderT};
 use std::sync::Mutex;
 use crate::order::order::{Order};
 
+use rand::Rng;
+
 use std::any::Any;
+
+
+#[derive(Debug, Clone)]
+pub enum MakerT {
+	Aggressive,
+	RiskAverse,
+	Random,
+}
+
+
+const NUM_TYPES: usize = MakerT::Random as usize + 1;
+
 
 
 /// A struct for the Maker player. 
@@ -12,18 +27,42 @@ pub struct Maker {
 	pub balance: f64,
 	pub inventory: f64,
 	pub player_type: TraderT,
+	pub maker_type: MakerT,
 }
 
 /// Logic for Maker trading strategy
 impl Maker {
-	pub fn new(trader_id: String) -> Maker {
+	pub fn new(trader_id: String, maker_type: MakerT) -> Maker {
 		Maker {
 			trader_id: trader_id,
 			orders: Mutex::new(Vec::<Order>::new()),
 			balance: 0.0,
 			inventory: 0.0,
 			player_type: TraderT::Maker,
+			maker_type: maker_type,
 		}
+	}
+
+	pub fn copy_last_order(&self) -> Option<Order> {
+		let orders = self.orders.lock().unwrap();
+		match orders.last(){
+			Some(order) => Some(order.clone()),
+			None => None,
+		}
+	}
+
+	pub fn gen_rand_type() -> MakerT {
+		let mut rng = rand::thread_rng();
+		match rng.gen_range(0, NUM_TYPES){
+			0 => MakerT::Aggressive,
+			1 => MakerT::RiskAverse,
+			2 => MakerT::Random,
+			_ => MakerT::Random,
+		}
+	}
+
+	pub fn new_order(&self, data: &PriorData, inference: &LikelihoodStats) -> Option<Order> {
+		unimplemented!()
 	}
 }
 
@@ -114,7 +153,7 @@ mod tests {
 
 	#[test]
 	fn test_new_maker() {
-		let mut m = Maker::new(format!("{:?}", "BillyBob"));
+		let mut m = Maker::new(format!("{:?}", "BillyBob"), Maker::gen_rand_type());
 		m.update_bal(55.0);
 		m.update_inv(100.0);
 

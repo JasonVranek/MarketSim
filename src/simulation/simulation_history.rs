@@ -52,23 +52,30 @@ impl ShallowBook {
 	}
 }
 
+// Likelihood
 // A struct to hold statistical data from the history. Used to infer a true value for a price
-pub struct Stats {
-	pub med_pool: Option<f64>,		// Median price of all bids+asks to mempool
-	pub wtd_pool: Option<f64>, 		// Mean price of all bids+asks to mempool, weighted by number of orders
-	pub wtd_bids_pool: Option<f64>, // Mean price of all bids to mempool, weighted by recency
-	pub wtd_asks_pool: Option<f64>, // Mean price of all asks to mempool, weighted by recency
-	pub wtd_cp: Option<f64>,		// Mean price of all published clearing prices, weighted by recency
+pub struct LikelihoodStats {
+	// pub med_pool: Option<f64>,		// Median price of all bids+asks to mempool
+	// pub wtd_pool: Option<f64>, 		// Mean price of all bids+asks to mempool, weighted by number of orders (bids vs asks)
+	// pub wtd_bids_pool: Option<f64>, // Mean price of all bids to mempool, weighted by recency
+	// pub wtd_asks_pool: Option<f64>, // Mean price of all asks to mempool, weighted by recency
+	// pub wtd_cp: Option<f64>,		// Mean price of all published clearing prices, weighted by recency
 
-	pub med_book: Option<f64>,		// Median price of all bids+asks to make it to order book
-	pub wtd_book: Option<f64>, 		// Mean price of all bids+asks to order book, weighted by number of orders
-	pub wtd_bids_book: Option<f64>, // Mean price of all bids to order book, weighted by recency
-	pub wtd_asks_book: Option<f64>, // Mean price of all asks to order book, weighted by recency
+	// pub med_book: Option<f64>,		// Median price of all bids+asks to make it to order book
+	// pub wtd_book: Option<f64>, 		// Mean price of all bids+asks to order book, weighted by number of orders
+	// pub wtd_bids_book: Option<f64>, // Mean price of all bids to order book, weighted by recency
+	// pub wtd_asks_book: Option<f64>, // Mean price of all asks to order book, weighted by recency
+	pub mean_bids: Option<f64>,
+	pub mean_asks: Option<f64>,
+	pub num_bids: u64,
+	pub num_asks: u64,
+	pub weighted_price: Option<f64>,
 }
 
+// Prior
 // A struct to hold the current data. 
 // Used to measure how close the current price is from the inferred true value.
-pub struct Data {
+pub struct PriorData {
 	pub clearing_price: Option<f64>,
 	pub best_bid: Option<Order>,
 	pub best_ask: Option<Order>,
@@ -194,8 +201,8 @@ impl History {
 	}
 
 	// Iterates over all submitted orders to average the bid and ask price.
-	// Returns tuple (avg_bids_price, avg_asks_price)
-	pub fn average_seen_prices(&self, _weight: f64) -> (Option<f64>, Option<f64>) {
+	// Returns tuple (avg_bids_price, avg_asks_price, num_bids, num_asks)
+	pub fn average_seen_prices(&self) -> (Option<f64>, Option<f64>, u64, u64) {
 		let (mut asks_sum, mut bids_sum) = (0.0, 0.0);
 		let (mut num_asks, mut num_bids) = (0.0, 0.0);
 		let all_orders = self.mempool_data.lock().expect("average_prices");
@@ -240,7 +247,7 @@ impl History {
 			bids_avg = Some(bids_sum / num_bids);
 		} 
 
-		(bids_avg, asks_avg)
+		(bids_avg, asks_avg, num_bids as u64, num_asks as u64)
 	}
 
 
@@ -360,20 +367,79 @@ impl History {
 		return (bids_out, asks_out, bids_vol, asks_vol);
 	}
 
-	pub fn produce_data(&self, mempool: Vec<Order>) -> (Data, Stats) {
+	pub fn produce_data(&self, mempool: Vec<Order>) -> (PriorData, LikelihoodStats) {
 		(self.decision_data(mempool), self.inference_data())
 	}
 
-	pub fn inference_data(&self) -> Stats {
-		unimplemented!();
+
+	// Returns the weighted averages of bids and asks seen in the mempool
+	pub fn inference_data(&self) -> LikelihoodStats {
+		let (mean_bids, mean_asks, num_bids, num_asks) = self.average_seen_prices();
+		
+		// Avoid divide by zero	
+		if num_bids == 0 && num_asks == 0 {
+			return LikelihoodStats {
+				mean_bids: None,
+				mean_asks: None,
+				num_bids: num_bids,
+				num_asks: num_asks,
+				weighted_price: None,
+			};
+		}
+		let raw_bids = match mean_bids {
+			Some(price) => Some(price * num_bids as f64),
+			None => None,
+		};
+
+		let raw_asks = match mean_asks {
+			Some(price) => Some(price * num_asks as f64),
+			None => None,
+		};
+
+		if raw_bids.is_none() && raw_asks.is_none() {
+			return LikelihoodStats {
+				mean_bids: None,
+				mean_asks: None,
+				num_bids: num_bids,
+				num_asks: num_asks,
+				weighted_price: None,
+			};
+		} else if raw_bids.is_none() && raw_asks.is_some() {
+			let weighted_price = Some(raw_asks.unwrap() / num_asks as f64);
+			LikelihoodStats {
+				mean_bids,
+				mean_asks,
+				num_bids,
+				num_asks,
+				weighted_price,
+			}
+		} else if raw_bids.is_some() && raw_asks.is_none() {
+			let weighted_price = Some(raw_bids.unwrap() / num_bids as f64);
+			LikelihoodStats {
+				mean_bids,
+				mean_asks,
+				num_bids,
+				num_asks,
+				weighted_price,
+			}
+		} else {
+			let weighted_price = Some((raw_bids.unwrap() + raw_asks.unwrap()) / (num_asks as f64 + num_bids as f64));
+			LikelihoodStats {
+				mean_bids,
+				mean_asks,
+				num_bids,
+				num_asks,
+				weighted_price,
+			}
+		}
 	}
 
-	pub fn decision_data(&self, current_pool: Vec<Order>) -> Data {
+	pub fn decision_data(&self, current_pool: Vec<Order>) -> PriorData {
 		let clearing_price = self.get_last_clearing_price();
 		let (best_bid, best_ask) = self.get_best_orders();
 		let (current_bids, current_asks, bids_volume, asks_volume) = self.get_current_orders();
 
-		Data {
+		PriorData {
 			clearing_price, 
 			best_bid,
 			best_ask,
@@ -384,10 +450,6 @@ impl History {
 			current_pool,
 		}
 	}
-
-
-
-
 }
 
 

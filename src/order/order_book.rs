@@ -271,7 +271,7 @@ impl Book {
     	// find the order with the max price (from sorted list):
     	let orders = self.orders.lock().unwrap();
 
-    	let new_max = orders.last().unwrap().price;
+    	let new_max = orders.last().unwrap().price; //UNSAFE!
 
     	// Update the book with new max price
     	let mut max_price = self.max_price.lock().unwrap();

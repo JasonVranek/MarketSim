@@ -59,6 +59,15 @@ fn main() {
 
 	controller.push(maker_task);
 
+	// Initialize an maker task to repeat to be repeated on a fixed interval
+	let maker_task2 = Simulation::maker_task2(simulation.dists.clone(), 
+												  Arc::clone(&simulation.house),
+												  Arc::clone(&simulation.mempool), 
+												  Arc::clone(&simulation.history), 
+												  consts.clone());
+
+	controller.push(maker_task2);
+
 
 	// Initalize a miner task to be repeated on a fixed interval
 	let miner_task = Simulation::miner_task(miner, simulation.dists.clone(), 

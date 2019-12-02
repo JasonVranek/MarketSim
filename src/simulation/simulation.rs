@@ -116,7 +116,12 @@ impl Simulation {
 	pub fn setup_makers(dists: &Distributions, consts: &Constants) -> Vec<Maker> {
 		let mut mkrs = Vec::new();
 		for _ in 1..consts.num_makers {
-			let mut m = Maker::new(gen_trader_id(TraderT::Maker));
+			// random id
+			let id = gen_trader_id(TraderT::Maker);
+			// random behavioral type for strategy
+			let maker_type = Maker::gen_rand_type();
+
+			let mut m = Maker::new(id, maker_type);
 			if let Some(bal) = dists.sample_dist(DistReason::MakerBalance) {
 				m.balance = bal;
 			} else {
@@ -343,9 +348,9 @@ impl Simulation {
 
 
 	pub fn maker_task2(dists: Distributions, house: Arc<ClearingHouse>, mempool: Arc<MemPool>, history: Arc<History>, consts: Constants) -> Task {
-		println!("out maker task");
+		println!("out maker task2");
 		Task::rpt_task(move || {
-			println!("in maker task");
+			println!("in maker task2");
 			// Select all Makers
 			let maker_ids = house.get_filtered_ids(TraderT::Maker);
 
@@ -363,12 +368,17 @@ impl Simulation {
 			// iterate through each maker and produce an order using the decision and inference data
 			for id in maker_ids {
 				// Each maker interprets the data to produce their order based on their type 
-				// get mutable reference to the maker
-				let maker_order = house.maker_new_order(id.clone());
+				if let Some(order) = house.maker_new_order(id.clone(), &decision_data, &inference_data) {
+					println!("lalalala {:?}", order);
 
-				// register the order to the clearing house
+					// register the order to the clearing house
 
-				// register the order to the history
+					// register the order to the history
+
+					// send the order
+				}
+
+				
 			}
 
 			

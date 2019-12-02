@@ -1,9 +1,10 @@
+use crate::simulation::simulation_history::{PriorData, LikelihoodStats};
 use crate::exchange::exchange_logic::TradeResults;
 use crate::exchange::MarketType;
 use crate::order::order::{Order};
 use crate::players::{Player, TraderT};
 use crate::players::investor::Investor;
-use crate::players::maker::Maker;
+use crate::players::maker::{Maker, MakerT};
 use crate::players::miner::Miner;
 
 use std::collections::HashMap;
@@ -76,15 +77,18 @@ impl ClearingHouse {
 	}
 
 	// Gets the maker and 
-	pub fn maker_new_order(&self, id: String) {
-		match self.get_player(id.clone()) {
+	pub fn maker_new_order(&self, id: String, data: &PriorData, inference: &LikelihoodStats) -> Option<Order>{
+		let players = self.players.lock().unwrap();
+		match players.get(&id) {
 			Some(player) => {
 				if let Some(maker) = player.as_any().downcast_ref::<Maker>() {
 					// Was able to find the maker in the clearing house and cast Player object to Maker
-					
+					let order = maker.new_order(data, inference);
+					return order
 				} else {
 					// Couldn't downcast to maker
 					println!("Couldn't downcast to maker: {}", id);
+					return None;
 				}
 				// Got a reference to the maker 
 
@@ -92,6 +96,7 @@ impl ClearingHouse {
 			},
 			None => {
 				println!("Couldn't get maker: {}", id);
+				return None;
 			}
 		} 
 	}
@@ -402,7 +407,7 @@ mod tests {
 		i.update_bal(55.0);
 		i.update_inv(100.0);
 
-		let mut mkr = Maker::new(format!("{:?}", "NillyNob"));
+		let mut mkr = Maker::new(format!("{:?}", "NillyNob"), MakerT::Aggressive);
 		mkr.update_bal(55.0);
 		mkr.update_inv(100.0);
 
@@ -443,8 +448,9 @@ mod tests {
 		} else {
 			panic!("AHHH failed to delete player");
 		}
-
 	}
+
+	
 }
 
 

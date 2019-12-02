@@ -43,9 +43,9 @@ pub fn parse_config_csv() -> Result<Distributions, Box<dyn Error>> {
 mod tests {
 	use super::*;
 
-	#[test]
-	fn test_parser() {
-		parse_config_csv();
-		assert_eq!(1, 2);
-	}
+	// #[test]
+	// fn test_parser() {
+	// 	parse_config_csv();
+	// 	assert_eq!(1, 2);
+	// }
 }

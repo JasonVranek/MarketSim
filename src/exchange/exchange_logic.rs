@@ -653,6 +653,25 @@ impl Auction {
 	    None
 	}
 
+	pub fn klf_clearing(bids: Arc<Book>, asks: Arc<Book>) -> Option<f64> {
+		let best_bid_p = bids.get_max_phigh();
+		let best_ask_p = asks.get_min_plow();
+
+		// Demand and supply at the best bid price
+		let (dem_bb, sup_bb) = Auction::calc_aggs(best_bid_p, Arc::clone(&bids), Arc::clone(&asks));
+
+		// Demand and supply at the best ask price
+		let (dem_ba, sup_ba) = Auction::calc_aggs(best_ask_p, Arc::clone(&bids), Arc::clone(&asks));
+
+		let order_imbalance = (dem_bb - sup_bb) / (dem_bb - sup_bb + sup_ba - dem_ba);
+
+		let clearing_price = best_bid_p + order_imbalance * (best_ask_p - best_bid_p);
+
+		println!("Clearing Price new way: {:?}, w:{}, pb:{}, pa:{}", clearing_price, order_imbalance, best_bid_p, best_ask_p);
+
+		Some(clearing_price)
+	}
+
 
 	/// Schedules an auction to run on an interval determined by the duration parameter in milliseconds.
 	/// Outputs a task that will be dispatched asynchronously via the controller module.
