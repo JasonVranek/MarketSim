@@ -90,9 +90,6 @@ impl ClearingHouse {
 					println!("Couldn't downcast to maker: {}", id);
 					return None;
 				}
-				// Got a reference to the maker 
-
-
 			},
 			None => {
 				println!("Couldn't get maker: {}", id);

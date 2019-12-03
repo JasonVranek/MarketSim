@@ -62,6 +62,23 @@ impl Maker {
 	}
 
 	pub fn new_order(&self, data: &PriorData, inference: &LikelihoodStats) -> Option<Order> {
+		// Match based on strategy to corresponding function
+		match self.maker_type {
+			MakerT::Aggressive => self.aggressive_order(data, inference),
+			MakerT::RiskAverse => self.risk_averse_order(data, inference),
+			MakerT::Random => self.random_order(data, inference),
+		}
+	}
+
+	pub fn aggressive_order(&self, data: &PriorData, inference: &LikelihoodStats) -> Option<Order> {
+		unimplemented!()
+	}
+
+	pub fn risk_averse_order(&self, data: &PriorData, inference: &LikelihoodStats) -> Option<Order> {
+		unimplemented!()
+	}
+
+	pub fn random_order(&self, data: &PriorData, inference: &LikelihoodStats) -> Option<Order> {
 		unimplemented!()
 	}
 }

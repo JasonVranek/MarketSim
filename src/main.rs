@@ -30,7 +30,7 @@ fn main() {
 			num_investors: 100,
 			num_makers: 5,
 			block_size: 1000,
-			market_type: MarketType::CDA,
+			market_type: MarketType::KLF,
 			front_run_perc: 1.0,
 			flow_order_offset: 5.0,
 			maker_prop_delay: 200,	// 200 ms delay after block for makers to act

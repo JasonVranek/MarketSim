@@ -31,17 +31,24 @@ pub struct ShallowBook {
 	pub block_num: u64,
 	pub avg_bids_price: Option<f64>,
 	pub avg_asks_price: Option<f64>,
+	pub current_wtd_price: Option<f64>,
+	pub num_bids: usize,
+	pub num_asks: usize,
 	pub best_order: Option<Order>,
 	pub book_type: TradeType,
 }
 
 impl ShallowBook {
-	pub fn new(bid_or_ask: TradeType, num: u64, abp: Option<f64>, aap: Option<f64>, order: Option<Order>) -> Self {
+	pub fn new(bid_or_ask: TradeType, num: u64, abp: Option<f64>, 
+		aap: Option<f64>, cwp: Option<f64>, order: Option<Order>, nb: usize, na: usize) -> Self {
 		ShallowBook {
 			orders: Vec::new(),
 			block_num: num,
 			avg_bids_price: abp,
 			avg_asks_price: aap,
+			current_wtd_price: cwp,
+			num_bids: nb,
+			num_asks: na,
 			best_order: order,
 			book_type: bid_or_ask,
 		}
@@ -54,6 +61,7 @@ impl ShallowBook {
 
 // Likelihood
 // A struct to hold statistical data from the history. Used to infer a true value for a price
+#[derive(Debug)]
 pub struct LikelihoodStats {
 	// pub med_pool: Option<f64>,		// Median price of all bids+asks to mempool
 	// pub wtd_pool: Option<f64>, 		// Mean price of all bids+asks to mempool, weighted by number of orders (bids vs asks)
@@ -75,12 +83,14 @@ pub struct LikelihoodStats {
 // Prior
 // A struct to hold the current data. 
 // Used to measure how close the current price is from the inferred true value.
+#[derive(Debug)]
 pub struct PriorData {
 	pub clearing_price: Option<f64>,
 	pub best_bid: Option<Order>,
 	pub best_ask: Option<Order>,
 	pub current_bids: Vec<Order>,
 	pub current_asks: Vec<Order>,
+	pub current_wtd_price : Option<f64>,
 	pub asks_volume: f64,
 	pub bids_volume: f64,
 	pub current_pool: Vec<Order>,
@@ -119,7 +129,7 @@ impl History {
 	// Parses through the orders and creates a shallow clone of the book
 	pub fn clone_book_state(&self, new_book: Vec<Order>, book_type: TradeType, block_num: u64) {
 		// Calculate average bid/ask prices from this book
-		let (avg_bids, avg_asks) = History::average_order_prices(&new_book, self.market_type);
+		let (avg_bids, avg_asks, num_bids, num_asks, wtd_avg_price) = History::average_order_prices(&new_book, self.market_type);
 
 		let best_order = match new_book.last() {
 			Some(order) => Some(order.clone()),
@@ -127,7 +137,7 @@ impl History {
 		};	
 
 		// Parse the orders into a ShallowBook 
-		let mut new_book_state = ShallowBook::new(book_type, block_num, avg_bids, avg_asks, best_order);
+		let mut new_book_state = ShallowBook::new(book_type, block_num, avg_bids, avg_asks, wtd_avg_price, best_order, num_bids, num_asks);
 		for order in new_book.iter() {
 			new_book_state.new_entry(Entry::new(order.order_id, order.quantity));
 		}
@@ -153,7 +163,7 @@ impl History {
 		}
 	}
 
-	pub fn average_order_prices(orders: &Vec<Order>, market_type: MarketType) -> (Option<f64>, Option<f64>) {
+	pub fn average_order_prices(orders: &Vec<Order>, market_type: MarketType) -> (Option<f64>, Option<f64>, usize, usize, Option<f64>) {
 		let (mut asks_sum, mut bids_sum) = (0.0, 0.0);
 		let (mut num_asks, mut num_bids) = (0.0, 0.0);
 		match market_type {
@@ -192,12 +202,20 @@ impl History {
 		let (mut bids_avg, mut asks_avg) = (None, None); 
 		if num_asks > 0.0 {
 			asks_avg = Some(asks_sum / num_asks);
-		} 
+		} else {
+			// No asks in book
+
+		}
 		if num_bids > 0.0 {
 			bids_avg = Some(bids_sum / num_bids);
-		} 
+		} else {
+			// No bids in book
+		}
 
-		(bids_avg, asks_avg)
+		let wtd_avg = History::calc_cur_wtd_price(bids_avg, asks_avg, num_bids as usize, num_asks as usize);
+
+
+		(bids_avg, asks_avg, num_bids as usize, num_asks as usize, wtd_avg)
 	}
 
 	// Iterates over all submitted orders to average the bid and ask price.
@@ -264,7 +282,7 @@ impl History {
 	// Returns (best_bid, best_ask) from the most recent order book
 	pub fn get_best_orders(&self) -> (Option<Order>, Option<Order>) {
 		let books = self.order_books.lock().unwrap();
-		let last_index = books.len() - 1;
+		let last_index: i64 = books.len() as i64 - 1;
 		if last_index == 0 {
 			// only have one book to look at
 			let shallow_book = books.last().expect("get_best_orders");
@@ -284,7 +302,8 @@ impl History {
 			}
 
 			// Look at second to last book and get best bid or best ask
-			let next_book = books.get(last_index - 1).expect("get_best_orders");
+			let second_last: usize = (last_index - 1) as usize;
+			let next_book = books.get(second_last).expect("get_best_orders");
 			match next_book.book_type {
 				TradeType::Bid => {
 					best_bid = next_book.best_order.clone();
@@ -307,9 +326,9 @@ impl History {
 		let mut asks_out = Vec::<Order>::new();
 		let mut bids_entries = Vec::<Entry>::new();
 		let mut asks_entries = Vec::<Entry>::new();
-		let books = self.order_books.lock().unwrap();
-		let last_index = books.len() - 1;
 		{
+			let books = self.order_books.lock().unwrap();
+			let last_index: i64 = books.len() as i64 - 1;
 			if last_index == 0 {
 				// only have one book to look at
 				let shallow_book = books.last().expect("get_current_orders");
@@ -335,7 +354,8 @@ impl History {
 				}
 
 				// Look at second to last book and get best bid or best ask
-				let next_book = books.get(last_index - 1).expect("get_current_orders");
+				let second_last: usize = (last_index - 1) as usize;
+				let next_book = books.get(second_last).expect("get_current_orders");
 				match next_book.book_type {
 					TradeType::Bid => {
 						bids_entries = next_book.orders.clone();
@@ -433,11 +453,51 @@ impl History {
 			}
 		}
 	}
+ 
+	// calculate the current weighted average price given the mean of bids, asks, and their respective quantities
+	pub fn calc_cur_wtd_price(mean_bids: Option<f64>, mean_asks: Option<f64>, num_bids: usize, num_asks: usize) -> Option<f64> {
+		// Avoid divide by zero	
+		if num_bids == 0 && num_asks == 0 {
+			return None;
+		}
+		let raw_bids = match mean_bids {
+			Some(price) => Some(price * num_bids as f64),
+			None => None,
+		};
+
+		let raw_asks = match mean_asks {
+			Some(price) => Some(price * num_asks as f64),
+			None => None,
+		};
+
+		if raw_bids.is_none() && raw_asks.is_none() {
+			return None;
+		} else if raw_bids.is_none() && raw_asks.is_some() {
+			return Some(raw_asks.unwrap() / num_asks as f64);
+		} else if raw_bids.is_some() && raw_asks.is_none() {
+			return Some(raw_bids.unwrap() / num_bids as f64);
+		} else {
+			return Some((raw_bids.unwrap() + raw_asks.unwrap()) / (num_asks as f64 + num_bids as f64));
+		}
+	}
+
+	pub fn get_weighted_price(&self) -> Option<f64> {
+		let books = self.order_books.lock().expect("get_weighted_price");
+		let last_book = books.last();
+		match last_book {
+			Some(book) => book.current_wtd_price,
+			None => None,
+		}
+	}
+
 
 	pub fn decision_data(&self, current_pool: Vec<Order>) -> PriorData {
 		let clearing_price = self.get_last_clearing_price();
 		let (best_bid, best_ask) = self.get_best_orders();
 		let (current_bids, current_asks, bids_volume, asks_volume) = self.get_current_orders();
+		
+		// Get the 
+		let current_wtd_price = self.get_weighted_price();
 
 		PriorData {
 			clearing_price, 
@@ -445,6 +505,7 @@ impl History {
 			best_ask,
 			current_bids,
 			current_asks,
+			current_wtd_price,
 			asks_volume,
 			bids_volume,
 			current_pool,

@@ -364,19 +364,20 @@ impl Simulation {
 
 			// use History to produce inference and decision data
 			let (decision_data, inference_data) = history.produce_data(pool);
+			println!("data=> {:?}, inference=> {:?}", decision_data, inference_data);
 
 			// iterate through each maker and produce an order using the decision and inference data
 			for id in maker_ids {
 				// Each maker interprets the data to produce their order based on their type 
-				if let Some(order) = house.maker_new_order(id.clone(), &decision_data, &inference_data) {
-					println!("lalalala {:?}", order);
+				// if let Some(order) = house.maker_new_order(id.clone(), &decision_data, &inference_data) {
+					// println!("lalalala {:?}", order);
 
 					// register the order to the clearing house
 
 					// register the order to the history
 
 					// send the order
-				}
+				// }
 
 				
 			}
