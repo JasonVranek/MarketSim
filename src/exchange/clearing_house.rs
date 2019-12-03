@@ -1,3 +1,4 @@
+use crate::simulation::simulation_config::{Distributions, Constants};
 use crate::simulation::simulation_history::{PriorData, LikelihoodStats};
 use crate::exchange::exchange_logic::TradeResults;
 use crate::exchange::MarketType;
@@ -77,14 +78,14 @@ impl ClearingHouse {
 	}
 
 	// Gets the maker and 
-	pub fn maker_new_order(&self, id: String, data: &PriorData, inference: &LikelihoodStats) -> Option<Order>{
+	pub fn maker_new_orders(&self, id: String, data: &PriorData, inference: &LikelihoodStats, dists: &Distributions, consts: &Constants) -> Option<(Order, Order)>{
 		let players = self.players.lock().unwrap();
 		match players.get(&id) {
 			Some(player) => {
 				if let Some(maker) = player.as_any().downcast_ref::<Maker>() {
 					// Was able to find the maker in the clearing house and cast Player object to Maker
-					let order = maker.new_order(data, inference);
-					return order
+					let orders = maker.new_orders(data, inference, dists, consts);
+					return orders
 				} else {
 					// Couldn't downcast to maker
 					println!("Couldn't downcast to maker: {}", id);

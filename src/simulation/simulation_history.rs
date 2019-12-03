@@ -91,6 +91,7 @@ pub struct PriorData {
 	pub current_bids: Vec<Order>,
 	pub current_asks: Vec<Order>,
 	pub current_wtd_price : Option<f64>,
+	pub mean_pool_gas: f64,
 	pub asks_volume: f64,
 	pub bids_volume: f64,
 	pub current_pool: Vec<Order>,
@@ -490,14 +491,32 @@ impl History {
 		}
 	}
 
+	pub fn get_mean_gas(pool: &Vec<Order>) -> f64 {
+		let num = pool.len();
+		if num <= 0 {
+			return 0.0;
+		}
+
+		let mut sum = 0.0;
+
+		for o in pool {
+			sum += o.gas;
+		}
+
+		sum / num as f64
+	}
+
 
 	pub fn decision_data(&self, current_pool: Vec<Order>) -> PriorData {
 		let clearing_price = self.get_last_clearing_price();
 		let (best_bid, best_ask) = self.get_best_orders();
 		let (current_bids, current_asks, bids_volume, asks_volume) = self.get_current_orders();
 		
-		// Get the 
+		// Get the weighted average price from the last public order book
 		let current_wtd_price = self.get_weighted_price();
+
+		// Get the current average gas price in the mmepool 
+		let mean_pool_gas = History::get_mean_gas(&current_pool);
 
 		PriorData {
 			clearing_price, 
@@ -506,6 +525,7 @@ impl History {
 			current_bids,
 			current_asks,
 			current_wtd_price,
+			mean_pool_gas, 
 			asks_volume,
 			bids_volume,
 			current_pool,

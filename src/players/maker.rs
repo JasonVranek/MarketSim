@@ -1,7 +1,9 @@
+use crate::simulation::simulation_config::{Distributions, Constants, DistReason};
 use crate::simulation::simulation_history::{PriorData, LikelihoodStats};
+use crate::exchange::MarketType;
 use crate::players::{Player, TraderT};
+use crate::order::order::{Order, TradeType, ExchangeType, OrderType};
 use std::sync::Mutex;
-use crate::order::order::{Order};
 
 use rand::Rng;
 
@@ -61,24 +63,152 @@ impl Maker {
 		}
 	}
 
-	pub fn new_order(&self, data: &PriorData, inference: &LikelihoodStats) -> Option<Order> {
-		// Match based on strategy to corresponding function
+	// Calculates gas price based on maker type
+	pub fn calc_gas(&self, mean_gas: f64, dists: &Distributions, consts: &Constants) -> f64 {
 		match self.maker_type {
-			MakerT::Aggressive => self.aggressive_order(data, inference),
-			MakerT::RiskAverse => self.risk_averse_order(data, inference),
-			MakerT::Random => self.random_order(data, inference),
+			MakerT::Aggressive => {
+			// Aggressive players will place new gas price > mean
+				mean_gas + Distributions::sample_uniform(0.01, consts.tick_size, None)
+			},
+			MakerT::RiskAverse => {
+			// RiskAverse players will place new gas price = mean
+				mean_gas
+			},
+			MakerT::Random => {
+			// Random players will place new gas price centered around mean
+				Distributions::sample_normal(mean_gas, 0.05, None).abs()
+			},
 		}
 	}
 
-	pub fn aggressive_order(&self, data: &PriorData, inference: &LikelihoodStats) -> Option<Order> {
+	// Calculates a price offset based on the makers type
+	// Given a price calculates the bid ask prices using maker type to determine spread
+	// returns tuple (bid_price, ask_price, bid_inv, ask_inv)
+	pub fn calc_price_inv(&self, price: Option<f64>, dists: &Distributions, consts: &Constants, ask_vol: f64, bid_vol: f64) -> Option<(f64, f64, f64, f64)> {
+		match price {
+			// inf_fv = the inferred fundamental value
+			Some(inf_fv) => {
+				let mut spread;
+				match self.maker_type {
+					MakerT::Aggressive => {
+						spread = consts.tick_size;
+					},
+					MakerT::RiskAverse => {
+						// Slightly bigger spread
+						spread = 2.0 * consts.tick_size;
+					},
+					MakerT::Random => {
+						let offset = Distributions::sample_uniform(0.01, consts.tick_size, None);
+						spread = consts.tick_size + offset;
+					},
+				}
+
+				// Calculate the prices based on inventory and spreads
+				let cur_inv = self.inventory;
+				if cur_inv == 0.0 {
+					// Maker has no inventory so center prices around inferred fund value
+					let bid_price = inf_fv - (spread / 2.0);
+					let ask_price = inf_fv + (spread / 2.0);
+					let bid_inv = dists.sample_dist(DistReason::MakerOrderVolume).expect("MakerOrderVolume");
+					let ask_inv = bid_inv;
+					Some((bid_price, ask_price, bid_inv, ask_inv))
+				} else if cur_inv < 0.0 {
+					// Maker has negative inventory, so shift spread for better bid price
+					let ratio = 0.75; // modify later!
+					let bid_spread = ratio * spread;
+					let ask_spread = (1.0 - ratio) * spread;
+					let bid_price = inf_fv - bid_spread;
+					let ask_price = inf_fv + ask_spread;
+					let bid_inv = ratio * dists.sample_dist(DistReason::MakerOrderVolume).expect("MakerOrderVolume");
+					let ask_inv = (1.0 - ratio) * dists.sample_dist(DistReason::MakerOrderVolume).expect("MakerOrderVolume");
+					Some((bid_price, ask_price, bid_inv, ask_inv))
+
+				} else {
+					// Maker has positive inventory, so shift spread for better ask price 
+					let ratio = 0.25; // modify later!
+					let bid_spread = ratio * spread;
+					let ask_spread = (1.0 - ratio) * spread;
+					let bid_price = inf_fv - bid_spread;
+					let ask_price = inf_fv + ask_spread;
+					let bid_inv = ratio * dists.sample_dist(DistReason::MakerOrderVolume).expect("MakerOrderVolume");
+					let ask_inv = (1.0 - ratio) * dists.sample_dist(DistReason::MakerOrderVolume).expect("MakerOrderVolume");
+					Some((bid_price, ask_price, bid_inv, ask_inv))
+				}
+			},
+			None => None,	// No price was supplied to determine maker's price
+		}
+		
+	}
+
+
+	
+
+	pub fn new_orders(&self, data: &PriorData, inference: &LikelihoodStats, dists: &Distributions, consts: &Constants) -> Option<(Order, Order)> {
+		// look at the weighted average price of the mempool, exit if no orders have been sent to pool
+		let wtd_pool_price = match inference.weighted_price {
+			Some(price) => price,
+			None => return None,
+		};
+			
+		// Look at the last public order book average and mean gas
+		let wtd_last_book_price = data.current_wtd_price;
+		let wtd_gas = data.mean_pool_gas;
+		let ask_vol = data.asks_volume;
+		let bid_vol = data.bids_volume;
+
+
+		// type of order (FlowOrder or LimitOrder)
+		let ex_type = match consts.market_type {
+			MarketType::CDA|MarketType::FBA => ExchangeType::LimitOrder,
+			MarketType::KLF => ExchangeType::FlowOrder,
+		};
+
+		// Calculate the bid and ask prices offset from weighted avg price based on maker type
+		// And the respective quantity for each order
+		let (bid_price, ask_price, bid_amt, ask_amt) = match self.calc_price_inv(wtd_last_book_price, dists, consts, ask_vol, bid_vol) {
+			Some((bp, ap, ba, aa)) => (bp, ap, ba, aa),
+			None => return None,
+		};
+
+		// Need to set p_low and p_high (unused in limit orders)
+		let bid_p_low = bid_price;
+		let bid_p_high = bid_price + consts.flow_order_offset;
+		let ask_p_low = ask_price - consts.flow_order_offset;
+		let ask_p_high = ask_price;
+		
+		// gas
+		let gas = self.calc_gas(wtd_gas, dists, consts);
+
+		let bid_order = Order::new(self.trader_id.clone(), 
+									   OrderType::Enter,
+							   	       TradeType::Bid,
+								       ex_type.clone(),
+								       bid_p_low,
+								       bid_p_high,
+								       bid_price,
+								       bid_amt,
+								       gas
+		);
+
+		let ask_order = Order::new(self.trader_id.clone(), 
+									   OrderType::Enter,
+							   	       TradeType::Ask,
+								       ex_type,
+								       ask_p_low,
+								       ask_p_high,
+								       bid_price,
+								       ask_amt,
+								       gas
+		);
+
+		Some((bid_order, ask_order))
+	}
+
+	pub fn risk_averse_order(&self, data: &PriorData, inference: &LikelihoodStats, dists: &Distributions, consts: &Constants) -> Option<Order> {
 		unimplemented!()
 	}
 
-	pub fn risk_averse_order(&self, data: &PriorData, inference: &LikelihoodStats) -> Option<Order> {
-		unimplemented!()
-	}
-
-	pub fn random_order(&self, data: &PriorData, inference: &LikelihoodStats) -> Option<Order> {
+	pub fn random_order(&self, data: &PriorData, inference: &LikelihoodStats, dists: &Distributions, consts: &Constants) -> Option<Order> {
 		unimplemented!()
 	}
 }

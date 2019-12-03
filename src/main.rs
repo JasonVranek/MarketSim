@@ -34,6 +34,8 @@ fn main() {
 			front_run_perc: 1.0,
 			flow_order_offset: 5.0,
 			maker_prop_delay: 200,	// 200 ms delay after block for makers to act
+			tick_size: 1.0,
+			maker_enter_prob: 0.25,
 		};
 
 
@@ -57,7 +59,7 @@ fn main() {
 												  Arc::clone(&simulation.history), 
 												  consts.clone());
 
-	controller.push(maker_task);
+	// controller.push(maker_task);
 
 	// Initialize an maker task to repeat to be repeated on a fixed interval
 	let maker_task2 = Simulation::maker_task2(simulation.dists.clone(), 

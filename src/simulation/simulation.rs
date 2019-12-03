@@ -150,8 +150,8 @@ impl Simulation {
 
 				// Decide bid or ask
 				let trade_type = match Distributions::fifty_fifty() {
-					0 => TradeType::Ask,
-					_ => TradeType::Bid,
+					true => TradeType::Ask,
+					false => TradeType::Bid,
 				};
 
 				// Sample order price from bid/ask distribution
@@ -280,8 +280,8 @@ impl Simulation {
 			for trader_id in maker_ids {
 				// Decide bid or ask
 				let trade_type = match Distributions::fifty_fifty() {
-					0 => TradeType::Ask,
-					_ => TradeType::Bid,
+					true => TradeType::Ask,
+					false => TradeType::Bid,
 				};
 
 				// Sample order price from bid/ask distribution
@@ -368,16 +368,48 @@ impl Simulation {
 
 			// iterate through each maker and produce an order using the decision and inference data
 			for id in maker_ids {
+				// Randomly choose whether the maker should try to trade this block
+				match Distributions::do_with_prob(consts.maker_enter_prob) {
+					true => {},
+					false => continue,
+				}
+
 				// Each maker interprets the data to produce their order based on their type 
-				// if let Some(order) = house.maker_new_order(id.clone(), &decision_data, &inference_data) {
-					// println!("lalalala {:?}", order);
+				if let Some((bid_order, ask_order)) = house.maker_new_orders(id.clone(), &decision_data, &inference_data, &dists, &consts) {
+					println!("BIDORDER:{:?} \n, ASKORDER:{:?}", bid_order, ask_order);
+					
+					// Add the order to the ClearingHouse which will register to the correct maker
+					match house.new_order(bid_order.clone()) {
+						Ok(()) => {
+							// println!("{:?}", bid_order);
+							// Add the bid_order to the simulation's history
+							history.mempool_order(bid_order.clone());
+							// Send the bid_order to the MemPool
+							OrderProcessor::conc_recv_order(bid_order, Arc::clone(&mempool)).join().expect("Failed to send inv order");
+							
+						},
+						Err(e) => {
+							// If we failed to add the order to the player, don't send it to mempool
+							println!("{:?}", e);
+						},
+					}
 
-					// register the order to the clearing house
-
-					// register the order to the history
-
-					// send the order
-				// }
+					// Add the order to the ClearingHouse which will register to the correct maker
+					match house.new_order(ask_order.clone()) {
+						Ok(()) => {
+							// println!("{:?}", ask_order);
+							// Add the ask_order to the simulation's history
+							history.mempool_order(ask_order.clone());
+							// Send the ask_order to the MemPool
+							OrderProcessor::conc_recv_order(ask_order, Arc::clone(&mempool)).join().expect("Failed to send inv order");
+							
+						},
+						Err(e) => {
+							// If we failed to add the ask_order to the player, don't send it to mempool
+							println!("{:?}", e);
+						},
+					}
+				}
 
 				
 			}

@@ -15,10 +15,12 @@ pub struct Constants {
 	pub front_run_perc: f64,
 	pub flow_order_offset: f64,
 	pub maker_prop_delay: u64,
+	pub tick_size: f64,
+	pub maker_enter_prob: f64,
 }
 
 impl Constants {
-	pub fn new(b_i: u64, n_i: u64, n_m: u64, b_s: usize, m_t: MarketType, f_r: f64, f_o_o: f64, m_p_d: u64) -> Constants {
+	pub fn new(b_i: u64, n_i: u64, n_m: u64, b_s: usize, m_t: MarketType, f_r: f64, f_o_o: f64, m_p_d: u64, t_s: f64, mep: f64) -> Constants {
 		Constants {
 			batch_interval: b_i,
 			num_investors: n_i,
@@ -28,6 +30,8 @@ impl Constants {
 			front_run_perc: f_r,
 			flow_order_offset: f_o_o,
 			maker_prop_delay: m_p_d,
+			tick_size: t_s,
+			maker_enter_prob: mep
 		}
 	}
 }
@@ -53,6 +57,7 @@ pub enum DistReason {
 	MakerType,
 	MakerInventory,
 	MakerBalance,
+	MakerOrderVolume,
 	InvestorBalance,
 	InvestorInventory,
 }
@@ -119,12 +124,25 @@ impl Distributions {
 		}
 	}
 
-	pub fn fifty_fifty() -> usize {
+	pub fn fifty_fifty() -> bool {
 		let val = rand::distributions::Uniform::new(0.0, 1.0).sample(&mut thread_rng());
 		if val > 0.50 {
-			return 1;
+			return true;
 		} else {
-			return 0;
+			return false;
+		}
+	}
+
+	// ex: prob = 0.10 -> 10% chance true, 90% chance false
+	pub fn do_with_prob(prob: f64) -> bool {
+		assert!(prob <= 1.0);
+		assert!(prob >= 0.0);
+
+		let val = rand::distributions::Uniform::new(0.0, 1.0).sample(&mut thread_rng());
+		if val <= prob {
+			return true;
+		} else {
+			return false;
 		}
 	}
 
