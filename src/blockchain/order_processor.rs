@@ -2,6 +2,8 @@ use tokio::net::tcp::TcpStream;
 use crate::order::order::{Order, OrderType, TradeType, ExchangeType};
 use crate::blockchain::mem_pool::MemPool;
 
+use crate::log_mempool_data;
+
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
@@ -13,6 +15,7 @@ extern crate tokio_serde_json;
 use tokio::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
 use serde_json::Value;
 use tokio_serde_json::{ReadJson, WriteJson};
+use log::{log, Level};
 
 // Handles JSON serialization/deserialization functions and new message processing
 pub struct OrderProcessor {}
@@ -24,6 +27,8 @@ impl OrderProcessor {
 	// pool is an Arc clone of the MemPool stored on the heap
 	pub fn conc_recv_order(order: Order, pool: Arc<MemPool>) -> JoinHandle<()> {
 	    thread::spawn(move || {
+	    	// Log the order to the mempool logger
+	    	log_mempool_data!(Order::order_to_csv(&order));
 	    	// The add function acquires the lock
 	    	pool.add(order);
 	    })

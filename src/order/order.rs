@@ -1,4 +1,4 @@
-use crate::utility::{gen_order_id};
+use crate::utility::{gen_order_id, get_time};
 
 
 /// Enum for matching over order types
@@ -151,6 +151,21 @@ impl Order {
     	} else {
     		u * ((p_high - price) / (p_high - p_low))
     	}
+    }
+
+    pub fn order_to_csv(order: &Order) -> String {
+    	format!("{:?},{},{},{:?},{:?},{:?},{},{},{},{},{},",
+    		get_time(),
+    		order.trader_id.clone(),
+    		order.order_id,
+    		order.order_type.clone(),
+    		order.trade_type.clone(),
+    		order.ex_type.clone(),
+    		order.p_low,
+    		order.p_high,
+    		order.price,
+    		order.quantity,
+    		order.gas)
     }
 }
 

@@ -5,20 +5,26 @@ use flow_rs::exchange::MarketType;
 use flow_rs::simulation::simulation_config::Constants;
 use flow_rs::controller::Controller;
 use flow_rs::simulation::simulation::{Simulation};
-use flow_rs::utility::setup_logging;
 use flow_rs::simulation::config_parser::*;
+
+
+use flow_rs::utility::{setup_logging, get_time};
+use flow_rs::{log_order_book, log_player_data, log_mempool_data};
+
 
 #[macro_use]
 extern crate log;
 extern crate log4rs;
 
+use log::{log, Level};
 use std::sync::Arc;
 use std::env;
 
 fn main() {
+	// Get the log file names
 	let mut args = env::args();
 	assert!(args.len() > 0);
-	args.next(); // consume file name
+	args.next(); // consume file name arg[0]
 	let filename = match args.next() {
 		Some(arg) => arg,
 		None => {
@@ -77,7 +83,6 @@ fn main() {
 												  Arc::clone(&simulation.block_num), 
 												  consts.clone());
 
-	// controller.push(maker_task);
 	controller.start_task(maker_task);
 
 
@@ -91,12 +96,7 @@ fn main() {
 												   Arc::clone(&simulation.block_num), 
 												   consts.clone());
 	
-	// controller.push(miner_task);
 	controller.start_task(miner_task);
-
-	// controller.run();
-
-	// controller.start_tasks();
 
 	for h in thread_handles {
 		h.join().unwrap();
@@ -107,8 +107,11 @@ fn main() {
 
 	info!("Done running simulation. Saving data...");
 
-	// Loop forever asynchronously running tasks
-	// controller.run();
+	let s = format!("Experiment ending at: {:?}", get_time());
+	log_order_book!(s);
+	log_mempool_data!(s);
+	log_player_data!(s);
+
 }
 
 

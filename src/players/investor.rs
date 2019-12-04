@@ -1,3 +1,4 @@
+use crate::utility::get_time;
 use crate::players::{Player,TraderT};
 use std::sync::Mutex;
 use crate::order::order::{Order};
@@ -111,6 +112,16 @@ impl Player for Investor {
 			copied.push(o.clone());
 		}
 		copied
+	}
+
+	fn log_to_csv(&self) -> String {
+		format!("{:?},{},{:?},{},{},{:?},", 
+				get_time(), 
+				self.trader_id.clone(),
+				self.player_type.clone(),
+				self.balance,
+				self.inventory,
+				self.orders)
 	}
 
 }

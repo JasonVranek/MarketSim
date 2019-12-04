@@ -1,3 +1,4 @@
+use crate::utility::get_time;
 use crate::simulation::simulation_config::{Distributions, Constants, DistReason};
 use crate::simulation::simulation_history::{PriorData, LikelihoodStats};
 use crate::exchange::MarketType;
@@ -281,6 +282,17 @@ impl Player for Maker {
 			copied.push(o.clone());
 		}
 		copied
+	}
+
+	fn log_to_csv(&self) -> String {
+		format!("{:?},{},{:?},{:?},{},{},{:?},", 
+				get_time(), 
+				self.trader_id.clone(),
+				self.player_type.clone(),
+				self.maker_type.clone(),
+				self.balance,
+				self.inventory,
+				self.orders)
 	}
 
 }

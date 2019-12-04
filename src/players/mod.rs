@@ -52,6 +52,8 @@ pub trait Player {
 	fn get_player_type(&self) -> TraderT;
 
 	fn as_any(&self) -> &dyn Any;
+
+	fn log_to_csv(&self) -> String;
 }
 
 

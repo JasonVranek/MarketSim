@@ -7,12 +7,15 @@ use crate::players::{Player, TraderT};
 use crate::players::investor::Investor;
 use crate::players::maker::{Maker, MakerT};
 use crate::players::miner::Miner;
+use crate::log_player_data;
 
 use std::collections::HashMap;
 use std::sync::Mutex;
 use rand::{thread_rng};
 use rand::seq::SliceRandom;
 
+
+use log::{log, Level};
 
 
 
@@ -159,6 +162,7 @@ impl ClearingHouse {
 			Some(player) => { 
 				player.update_inv(inv_to_add);
 				player.update_bal(bal_to_add);
+				log_player_data!(player.log_to_csv());
 				Some((player.get_bal(), player.get_inv()))
 			}
 			None => None,
