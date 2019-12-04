@@ -5,7 +5,7 @@ use crate::exchange::MarketType;
 use crate::order::order::{Order};
 use crate::players::{Player, TraderT};
 use crate::players::investor::Investor;
-use crate::players::maker::{Maker, MakerT};
+use crate::players::maker::{Maker};
 use crate::players::miner::Miner;
 use crate::log_player_data;
 
@@ -187,6 +187,10 @@ impl ClearingHouse {
 					// Update bidder: -bal, +inv
 					let bidder_id = pu.payer_id;
 					let volume = pu.volume;
+					if volume == 0.0 {
+						// no need to update players if no volume is to be traded
+						continue;
+					}
 					let payment = pu.price * volume;
 					if let Some((new_bal, new_inv)) = self.update_player(bidder_id.clone(), -payment, volume) {
 						println!("Updated {}. bal=>{}, inv=>{}", bidder_id.clone(), new_bal, new_inv);
@@ -223,6 +227,10 @@ impl ClearingHouse {
 					// Update bidder: -bal, +inv
 					let bidder_id = pu.payer_id;
 					let volume = pu.volume;
+					if volume == 0.0 {
+						// no need to update players if no volume is to be traded
+						continue;
+					}
 					let payment = pu.price * volume;
 					if let Some((new_bal, new_inv)) = self.update_player(bidder_id.clone(), -payment, volume) {
 						println!("Updated {}. bal=>{}, inv=>{}", bidder_id.clone(), new_bal, new_inv);

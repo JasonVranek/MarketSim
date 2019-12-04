@@ -47,10 +47,10 @@ fn main() {
 
 	let consts = Constants {
 			batch_interval: 500,
-			num_investors: 100,
+			num_investors: 10,
 			num_makers: 5,
 			block_size: 1000,
-			num_blocks: 5,
+			num_blocks: 50,
 			market_type: MarketType::KLF,
 			front_run_perc: 1.0,
 			flow_order_offset: 5.0,
