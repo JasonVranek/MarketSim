@@ -285,14 +285,14 @@ impl Player for Maker {
 	}
 
 	fn log_to_csv(&self) -> String {
-		format!("{:?},{},{:?},{:?},{},{},{:?},", 
+		format!("{:?},{},{:?},{},{},{:?},{:?},", 
 				get_time(), 
 				self.trader_id.clone(),
 				self.player_type.clone(),
-				self.maker_type.clone(),
 				self.balance,
 				self.inventory,
-				self.orders)
+				self.orders,
+				self.maker_type.clone())
 	}
 
 }

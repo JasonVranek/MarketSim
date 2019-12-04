@@ -1,5 +1,4 @@
 use crate::order::order::{Order, OrderType, TradeType};
-use crate::exchange::clearing_house::ClearingHouse;
 use crate::blockchain::mem_pool::MemPool;
 use crate::order::order_book::Book;
 use crate::controller::{Task, State};

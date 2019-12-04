@@ -11,12 +11,15 @@ use crate::players::investor::Investor;
 use crate::players::maker::Maker;
 use crate::exchange::MarketType;
 use crate::blockchain::order_processor::OrderProcessor;
-use crate::utility::gen_trader_id;
+use crate::utility::{gen_trader_id, get_time};
 use crate::simulation::simulation_history::History;
 
 use std::sync::Arc;
 use std::{time, thread};
 use std::thread::JoinHandle;
+
+use log::{Level, Log};
+
 
 
 pub struct BlockNum {pub num: Mutex<u64>}
@@ -242,9 +245,23 @@ impl Simulation {
 
 			// Publish the miner's current frame
 			if let Some(vec_results) = miner.publish_frame(Arc::clone(&bids), Arc::clone(&asks), consts.market_type) {
+				let copied_bids = bids.copy_orders();
+				let copied_asks = asks.copy_orders();
+
+				let clearing_price = vec_results.last().expect("vec_results").uniform_price;
+				log_order_book!(format!("{:?},{},{:?},{:?},{:?},",
+					get_time(),
+					block_num.read_count(),
+					clearing_price,
+					copied_bids,
+					copied_asks,
+					));
+
 				// Save new book state to the history
-				history.clone_book_state(bids.copy_orders(), TradeType::Bid, *block_num.num.lock().unwrap());
-				history.clone_book_state(asks.copy_orders(), TradeType::Bid, *block_num.num.lock().unwrap());
+				history.clone_book_state(copied_bids, TradeType::Bid, *block_num.num.lock().unwrap());
+				history.clone_book_state(copied_asks, TradeType::Bid, *block_num.num.lock().unwrap());
+				
+				// time,block_num,book_type,clearing_price,bids_book,asks_book,
 				block_num.inc_count();
 				for res in vec_results {
 					// Update the clearing house and history

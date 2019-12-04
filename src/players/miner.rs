@@ -1,4 +1,3 @@
-use crate::utility::get_time;
 use crate::players::{Player,TraderT};
 use crate::order::order::Order;
 use crate::blockchain::mem_pool::MemPool;
@@ -6,7 +5,7 @@ use crate::blockchain::mempool_processor::MemPoolProcessor;
 use crate::order::order_book::Book;
 use crate::exchange::MarketType;
 use crate::exchange::exchange_logic::{Auction, TradeResults};
-use crate::utility::{gen_order_id};
+use crate::utility::{gen_order_id,get_time};
 
 use std::any::Any;
 use std::sync::{Mutex, Arc};

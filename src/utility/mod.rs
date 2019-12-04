@@ -134,13 +134,8 @@ pub fn setup_logging(file_name: &str) -> log4rs::Handle {
 
     let handle = log4rs::init_config(config).expect("Couldn't config");
 
-    // log!(target: "app::order_books", Level::Warn, "test {}", 1);
-    // log!(target: "app::player_data", Level::Warn, "test {}", 2);
-    // log!(target: "app::mempool_data", Level::Warn, "test {}", 3);
-
     info!("Setup Logger @{:?}", get_time());
     
-
     handle
 }
 

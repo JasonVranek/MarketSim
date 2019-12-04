@@ -3,11 +3,13 @@ use crate::order::order_book::Book;
 use crate::order::order::{Order};
 use crate::exchange::MarketType;
 use crate::utility::get_time;
+use crate::log_order_book;
 
 use std::sync::{Mutex, Arc};
 use std::cmp::Ordering;
 
 use rayon::prelude::*;
+use log::{log, Level};
 
 
 
@@ -108,7 +110,7 @@ impl Auction {
 						best_ask.quantity -= new_bid.quantity;
 						trace!("New bid:{} transacted {} shares with best ask:{} @{}", 
 								new_bid.trader_id, new_bid.quantity, best_ask.trader_id, best_ask.price);
-						
+
 						// Update player results to modify ExchangeHouse
 						updates.push(PlayerUpdate::new(
 							new_bid.trader_id.clone(),
@@ -151,7 +153,7 @@ impl Auction {
 								// No more asks in the book,set default best ask price
 								asks.update_best_price(MAX_PRICE);
 								// The bid will be returned to the book for future crossings
-								bids.add_order(new_bid).expect("Failed to add bid to book...");
+								bids.add_order(new_bid.clone()).expect("Failed to add bid to book...");
 								break;
 							}
 						}
@@ -189,12 +191,14 @@ impl Auction {
 				}  
 			} else {
 				// New bid didn't cross, needs to be added to the book then exit
-				bids.add_order(new_bid).expect("Failed to add bid to book...");
+				bids.add_order(new_bid.clone()).expect("Failed to add bid to book...");
+				log_order_book!(format!("{},{:?},{:?},",Order::order_to_csv(&new_bid),bids.orders,asks.orders));
 				results.cross_results = Some(updates);
 				return Some(results);
 			}
 		}
 		// Done with loop, return the results
+		log_order_book!(format!("{},{:?},{:?},",Order::order_to_csv(&new_bid),bids.orders,asks.orders));
 		results.cross_results = Some(updates);
 		return Some(results);
 	}
@@ -268,7 +272,7 @@ impl Auction {
 								// No more bids in the book, need to add this ask to book, set default best bid price
 								bids.update_best_price(MIN_PRICE);
 								// The ask will be returned to the book for future crossings
-								asks.add_order(new_ask).expect("Failed to add ask to book...");
+								asks.add_order(new_ask.clone()).expect("Failed to add ask to book...");
 								break;
 							}
 						}
@@ -306,12 +310,15 @@ impl Auction {
 				}  
 			} else {
 				// New ask didn't cross, needs to be added to the book
-				asks.add_order(new_ask).expect("Failed to add ask to book...");
+				asks.add_order(new_ask.clone()).expect("Failed to add ask to book...");
+				log_order_book!(format!("{},{:?},{:?},",Order::order_to_csv(&new_ask),bids.orders,asks.orders));
+
 				results.cross_results = Some(updates);
 				return Some(results);
 			}
 		}
 		// Done with loop, return the results
+		log_order_book!(format!("{},{:?},{:?},",Order::order_to_csv(&new_ask),bids.orders,asks.orders));
 		results.cross_results = Some(updates);
 		return Some(results);
 	}

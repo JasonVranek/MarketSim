@@ -50,7 +50,7 @@ fn main() {
 			num_investors: 100,
 			num_makers: 5,
 			block_size: 1000,
-			num_blocks: 1,
+			num_blocks: 5,
 			market_type: MarketType::KLF,
 			front_run_perc: 1.0,
 			flow_order_offset: 5.0,
@@ -58,6 +58,9 @@ fn main() {
 			tick_size: 1.0,
 			maker_enter_prob: 0.25,
 		};
+
+	
+	setup_log_headers(&consts);    
 
 
 	// Initial state of the sim
@@ -114,6 +117,19 @@ fn main() {
 
 }
 
+
+fn setup_log_headers(consts: &Constants) {
+	// Setup the logfile headers
+	log_player_data!(format!("time,trader_id,player_type,balance,inventory,orders,maker_type,"));
+    log_mempool_data!(format!("time,trader_id,order_id,order_type,trade_type,ex_type,p_low,p_high,price,quantity,gas,"));
+
+    match consts.market_type {
+    	MarketType::CDA => {
+    		log_order_book!("time,new_order_trader_id,new_order_order_id,new_order_order_type,new_order_trade_type,new_order_ex_type,new_order_p_low,new_order_p_high,new_order_price,new_order_quantity,new_order_gas,bids_after,asks_after");
+    	},
+    	_ => log_order_book!(format!("time,block_num,book_type,clearing_price,book_before,book_after,")),
+    }
+}
 
 
 
