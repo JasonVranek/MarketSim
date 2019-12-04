@@ -30,6 +30,7 @@ fn main() {
 			num_investors: 100,
 			num_makers: 5,
 			block_size: 1000,
+			num_blocks: 2,
 			market_type: MarketType::KLF,
 			front_run_perc: 1.0,
 			flow_order_offset: 5.0,
@@ -48,27 +49,22 @@ fn main() {
 												  Arc::clone(&simulation.house),
 												  Arc::clone(&simulation.mempool),
 												  Arc::clone(&simulation.history), 
+												  Arc::clone(&simulation.block_num), 
 												  consts.clone());
 
 	thread_handles.push(investor_task);
+
 
 	// Initialize an maker task to repeat to be repeated on a fixed interval
 	let maker_task = Simulation::maker_task(simulation.dists.clone(), 
 												  Arc::clone(&simulation.house),
 												  Arc::clone(&simulation.mempool), 
 												  Arc::clone(&simulation.history), 
+												  Arc::clone(&simulation.block_num), 
 												  consts.clone());
 
 	// controller.push(maker_task);
-
-	// Initialize an maker task to repeat to be repeated on a fixed interval
-	let maker_task2 = Simulation::maker_task2(simulation.dists.clone(), 
-												  Arc::clone(&simulation.house),
-												  Arc::clone(&simulation.mempool), 
-												  Arc::clone(&simulation.history), 
-												  consts.clone());
-
-	controller.push(maker_task2);
+	controller.start_task(maker_task);
 
 
 	// Initalize a miner task to be repeated on a fixed interval
@@ -81,13 +77,21 @@ fn main() {
 												   Arc::clone(&simulation.block_num), 
 												   consts.clone());
 	
-	controller.push(miner_task);
+	// controller.push(miner_task);
+	controller.start_task(miner_task);
 
-	controller.run();
+	// controller.run();
+
+	// controller.start_tasks();
 
 	for h in thread_handles {
 		h.join().unwrap();
 	}
+
+
+	println!("DONNEeEEEEEeee");
+
+	controller.shutdown();
 
 
 

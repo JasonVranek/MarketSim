@@ -1,3 +1,4 @@
+use tokio::runtime::Runtime;
 use std::time::{Duration, Instant};
 use tokio::prelude::*;
 use tokio::timer::{Interval, Delay};
@@ -16,12 +17,14 @@ pub enum State {
 // A wrapper around tokio to dispatch tasks asynchronously
 pub struct Controller {
 	tasks: Vec<AsyncTask>,
+	runtime: Runtime,
 }
 
 impl Controller {
 	pub fn new() -> Controller {
 		Controller{
 			tasks: Vec::<AsyncTask>::new(),
+			runtime: Runtime::new().expect("init runtime"),
 		}
 	}
 
@@ -34,9 +37,23 @@ impl Controller {
 		// Use join/join_all to combine futures into a single future to use in tokio::run
 		tokio::run(join_all(self.tasks).map(|_| ()));
 	}
+
+	pub fn start_tasks(mut self) {
+		for task in self.tasks {
+			self.runtime.spawn(task);
+		}
+	}
+
+	pub fn start_task(&mut self, task: Task) {
+		self.runtime.spawn(task.task);
+	}
+
+	pub fn shutdown(self) {
+		self.runtime.shutdown_now().wait().expect("shutdown runtime");
+	}
 }
 
-pub type AsyncTask = Box<Future<Item = (), Error = ()> + Send>;
+pub type AsyncTask = Box<dyn Future<Item = (), Error = ()> + Send>;
 
 // A wrapper to easily create dispatch closure's asynchronously as tasks in tokio
 pub struct Task {

@@ -29,7 +29,12 @@ impl BlockNum {
 	}
 
 	pub fn inc_count(&self) {
-		*self.num.lock().unwrap() + 1;
+		let mut count = self.num.lock().unwrap();
+		*count += 1;
+	}
+
+	pub fn read_count(&self) -> u64 {
+		*self.num.lock().unwrap()
 	}
 }
 
@@ -140,11 +145,18 @@ impl Simulation {
 	/// A repeating task. Will randomly select an Investor from the ClearingHouse,
 	/// generate a bid/ask order priced via bid/ask distributions, send the order to 
 	/// the mempool, and then sleep until the next investor_arrival time.
-	pub fn investor_task(dists: Distributions, house: Arc<ClearingHouse>, mempool: Arc<MemPool>, history: Arc<History>, consts: Constants) -> JoinHandle<()> {
+	pub fn investor_task(dists: Distributions, house: Arc<ClearingHouse>, mempool: Arc<MemPool>, history: Arc<History>, block_num: Arc<BlockNum>, consts: Constants) -> JoinHandle<()> {
 		// Task::rpt_task(move || {
 		thread::spawn(move || {       
 			loop {
 				println!("In inv task: {:?}", consts.market_type);
+				// Check if the simulation is ending
+				if block_num.read_count() > consts.num_blocks {
+					// exit the thread
+					println!("Exiting investor_task");
+					break;
+				}
+
 				// Randomly select an investor
 				let trader_id = house.get_rand_player_id(TraderT::Investor).expect("Couldn't get rand investor");
 
@@ -221,8 +233,16 @@ impl Simulation {
 		mempool: Arc<MemPool>, bids: Arc<Book>, asks: Arc<Book>, history: Arc<History>, block_num: Arc<BlockNum>, consts: Constants) -> Task {
 		println!("out miner task");
 		Task::rpt_task(move || {
-			println!("in miner task");
+			println!("in miner task, {:?}", block_num.read_count());
 			
+			// Check if the simulation is ending
+			if block_num.read_count() > consts.num_blocks {
+				// exit the thread
+				println!("Exiting miner_task");
+				loop {}
+				// std::process::exit(1)
+			}
+
 			// Publish the miner's current frame
 			if let Some(vec_results) = miner.publish_frame(Arc::clone(&bids), Arc::clone(&asks), consts.market_type) {
 				// Save new book state to the history
@@ -269,88 +289,19 @@ impl Simulation {
 	}
 
 
-
-	pub fn maker_task(dists: Distributions, house: Arc<ClearingHouse>, mempool: Arc<MemPool>, history: Arc<History>, consts: Constants) -> Task {
-		println!("out maker task");
-		Task::rpt_task(move || {
-			println!("in maker task");
-			// Select all Makers
-			let maker_ids = house.get_filtered_ids(TraderT::Maker);
-
-			for trader_id in maker_ids {
-				// Decide bid or ask
-				let trade_type = match Distributions::fifty_fifty() {
-					true => TradeType::Ask,
-					false => TradeType::Bid,
-				};
-
-				// Sample order price from bid/ask distribution
-				let price = match trade_type {
-					TradeType::Ask => dists.sample_dist(DistReason::AsksCenter).expect("couldn't sample price"),
-					TradeType::Bid => dists.sample_dist(DistReason::BidsCenter).expect("couldn't sample price"),
-				};
-
-				// Sample order volume from bid/ask distribution
-				let quantity = dists.sample_dist(DistReason::InvestorVolume).expect("couldn't sample vol");
-
-				// Determine if were using flow or limit order
-				let ex_type = match consts.market_type {
-					MarketType::CDA|MarketType::FBA => ExchangeType::LimitOrder,
-					MarketType::KLF => ExchangeType::FlowOrder,
-				};
-
-				// Set the p_low and p_high to the price for limit orders
-				let (p_l, p_h) = match ex_type {								
-					ExchangeType::LimitOrder => (price, price),
-					ExchangeType::FlowOrder => {
-						// How to calculate flow order price?
-						match trade_type {
-							TradeType::Ask => (price, price + consts.flow_order_offset),
-							TradeType::Bid => (price - consts.flow_order_offset, price),
-						}
-					}
-				};
-
-				// Generate the order
-				let order = Order::new(trader_id.clone(), 
-									   OrderType::Enter,
-							   	       trade_type,
-								       ex_type,
-								       p_l,
-								       p_h,
-								       price,
-								       quantity,
-								       dists.sample_dist(DistReason::InvestorGas).expect("Couldn't sample gas")
-				);
-
-
-				// Add the order to the ClearingHouse which will register to the correct investor
-				match house.new_order(order.clone()) {
-					Ok(()) => {
-						// println!("{:?}", order);
-						// Add the order to the simulation's history
-						history.mempool_order(order.clone());
-						// Send the order to the MemPool
-						OrderProcessor::conc_recv_order(order, Arc::clone(&mempool)).join().expect("Failed to send inv order");
-						
-					},
-					Err(e) => {
-						// If we failed to add the order to the player, don't send it to mempool
-						println!("{:?}", e);
-					},
-				}
-
-			}
-			
-		}, consts.batch_interval + consts.maker_prop_delay)
-	}
-
-
-
-	pub fn maker_task2(dists: Distributions, house: Arc<ClearingHouse>, mempool: Arc<MemPool>, history: Arc<History>, consts: Constants) -> Task {
+	pub fn maker_task(dists: Distributions, house: Arc<ClearingHouse>, mempool: Arc<MemPool>, history: Arc<History>, block_num: Arc<BlockNum>, consts: Constants) -> Task {
 		println!("out maker task2");
 		Task::rpt_task(move || {
 			println!("in maker task2");
+
+			// Check if the simulation is ending
+			if block_num.read_count() > consts.num_blocks {
+				// exit the thread
+				println!("Exiting maker_task");
+				loop {}
+				// std::process::exit(1)
+			}
+
 			// Select all Makers
 			let maker_ids = house.get_filtered_ids(TraderT::Maker);
 
@@ -409,13 +360,8 @@ impl Simulation {
 							println!("{:?}", e);
 						},
 					}
-				}
-
-				
+				}	
 			}
-
-			
-			
 		}, consts.batch_interval + consts.maker_prop_delay)
 	}
 }

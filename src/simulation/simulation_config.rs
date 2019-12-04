@@ -11,6 +11,7 @@ pub struct Constants {
 	pub num_investors: u64,
 	pub num_makers: u64,
 	pub block_size: usize,
+	pub num_blocks: u64,
 	pub market_type: MarketType,
 	pub front_run_perc: f64,
 	pub flow_order_offset: f64,
@@ -20,12 +21,15 @@ pub struct Constants {
 }
 
 impl Constants {
-	pub fn new(b_i: u64, n_i: u64, n_m: u64, b_s: usize, m_t: MarketType, f_r: f64, f_o_o: f64, m_p_d: u64, t_s: f64, mep: f64) -> Constants {
+	pub fn new(b_i: u64, n_i: u64, n_m: u64, b_s: usize, n_b: u64, 
+		m_t: MarketType, f_r: f64, f_o_o: f64, m_p_d: u64, t_s: f64, 
+		mep: f64) -> Constants {
 		Constants {
 			batch_interval: b_i,
 			num_investors: n_i,
 			num_makers: n_m,
 			block_size: b_s,
+			num_blocks: n_b,
 			market_type: m_t,
 			front_run_perc: f_r,
 			flow_order_offset: f_o_o,
