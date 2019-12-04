@@ -4,10 +4,11 @@ use rand::{Rng, thread_rng};
 use rand::distributions::Alphanumeric;
 use std::iter;
 
-// use log::LevelFilter;
-// use log4rs::append::file::FileAppender;
-// use log4rs::encode::pattern::PatternEncoder;
-// use log4rs::config::{Appender, Config, Root};
+use log::LevelFilter;
+use log4rs::append::console::ConsoleAppender;
+use log4rs::append::file::FileAppender;
+use log4rs::encode::pattern::PatternEncoder;
+use log4rs::config::{Appender, Config, Root};
 
 pub fn get_time() -> Duration {
     SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)
@@ -64,20 +65,26 @@ pub fn gen_rand_trader_id() -> String {
 }
 
 
-// pub fn setup_logging(logfile: &str) {
-//     let logfile = FileAppender::builder()
-//         .encoder(Box::new(PatternEncoder::new("{l} - {m}\n")))
-//         .build(format!("log/{}", logfile)).expect("Couldn't set up appender");
+pub fn setup_logging(file_name: &str) -> log4rs::Handle {
+    let stdout = ConsoleAppender::builder().build();
 
-//     // Use builder instead of yaml file
-//     let config = Config::builder()
-//         .appender(Appender::builder().build("logfile", Box::new(logfile)))
-//         .build(Root::builder()
-//                    .appender("logfile")
-//                    .build(LevelFilter::Info)).expect("Couldn't set up builder");
 
-//     log4rs::init_config(config).expect("Couldn't config");
+    let logfile = FileAppender::builder()
+        .encoder(Box::new(PatternEncoder::new("{l} - {m}\n")))
+        .build(format!("log/{}", file_name)).expect("Couldn't set up appender");
 
-//     info!("Setup Logger @{:?}", get_time());
+    // Use builder instead of yaml file
+    let config = Config::builder()
+        .appender(Appender::builder().build("stdout", Box::new(stdout)))
+        .appender(Appender::builder().build("logfile", Box::new(logfile)))
+        .build(Root::builder()
+                   .appender("logfile")
+                   .build(LevelFilter::Info)).expect("Couldn't set up builder");
 
-// }
+    let handle = log4rs::init_config(config).expect("Couldn't config");
+
+    info!("Setup Logger @{:?}", get_time());
+
+    handle
+
+}

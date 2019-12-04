@@ -3,21 +3,35 @@ extern crate tokio;
 
 use flow_rs::exchange::MarketType;
 use flow_rs::simulation::simulation_config::Constants;
-// use flow_rs::io::ws_json::ws_listener;
-// use flow_rs::io::tcp_json::tcp_listener;
 use flow_rs::controller::Controller;
 use flow_rs::simulation::simulation::{Simulation};
-// use flow_rs::utility::setup_logging;
-
-use std::sync::Arc;
+use flow_rs::utility::setup_logging;
 use flow_rs::simulation::config_parser::*;
 
-pub struct BlockNum{num:Arc<u64>}
+#[macro_use]
+extern crate log;
+extern crate log4rs;
+
+use std::sync::Arc;
+use std::env;
 
 fn main() {
+	let mut args = env::args();
+	assert!(args.len() > 0);
+	args.next(); // consume file name
+	let filename = match args.next() {
+		Some(arg) => arg,
+		None => {
+			println!("Supply log file!");
+			std::process::exit(1);
+		}
+	};
+
+	// Initialize the logger
+	let _logger_handle = setup_logging(&filename);
+
 	// Create a new Controller to dispatch our tasks
 	let mut controller = Controller::new();
-
 
 	// Create a vector to hold the handles to the threads
 	let mut thread_handles = Vec::new();
@@ -26,11 +40,11 @@ fn main() {
 	let distributions = parse_config_csv().expect("Couldn't parse config");
 
 	let consts = Constants {
-			batch_interval: 3000,
+			batch_interval: 500,
 			num_investors: 100,
 			num_makers: 5,
 			block_size: 1000,
-			num_blocks: 2,
+			num_blocks: 1,
 			market_type: MarketType::KLF,
 			front_run_perc: 1.0,
 			flow_order_offset: 5.0,
@@ -88,12 +102,10 @@ fn main() {
 		h.join().unwrap();
 	}
 
-
-	println!("DONNEeEEEEEeee");
-
 	controller.shutdown();
 
 
+	info!("Done running simulation. Saving data...");
 
 	// Loop forever asynchronously running tasks
 	// controller.run();

@@ -1,3 +1,14 @@
+#[macro_use]
+extern crate serde_derive;
+
+#[macro_use]
+extern crate serde_json;
+
+#[macro_use]
+extern crate log;
+extern crate log4rs;
+
+
 pub mod io;
 pub mod exchange;
 pub mod simulation;
@@ -11,16 +22,6 @@ use crate::order::order_book::Book;
 use crate::order::order::TradeType;
 use crate::blockchain::mem_pool::MemPool;
 use crate::controller::State;
-
-#[macro_use]
-extern crate serde_derive;
-
-#[macro_use]
-extern crate serde_json;
-
-#[macro_use]
-extern crate log;
-extern crate log4rs;
 
 use std::sync::{Mutex, Arc};
 

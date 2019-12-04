@@ -14,7 +14,6 @@ use crate::blockchain::order_processor::OrderProcessor;
 use crate::utility::gen_trader_id;
 use crate::simulation::simulation_history::History;
 
-
 use std::sync::Arc;
 use std::{time, thread};
 use std::thread::JoinHandle;
@@ -146,7 +145,6 @@ impl Simulation {
 	/// generate a bid/ask order priced via bid/ask distributions, send the order to 
 	/// the mempool, and then sleep until the next investor_arrival time.
 	pub fn investor_task(dists: Distributions, house: Arc<ClearingHouse>, mempool: Arc<MemPool>, history: Arc<History>, block_num: Arc<BlockNum>, consts: Constants) -> JoinHandle<()> {
-		// Task::rpt_task(move || {
 		thread::spawn(move || {       
 			loop {
 				println!("In inv task: {:?}", consts.market_type);
@@ -239,7 +237,6 @@ impl Simulation {
 			if block_num.read_count() > consts.num_blocks {
 				// exit the thread
 				println!("Exiting miner_task");
-				loop {}
 				// std::process::exit(1)
 			}
 
@@ -290,15 +287,14 @@ impl Simulation {
 
 
 	pub fn maker_task(dists: Distributions, house: Arc<ClearingHouse>, mempool: Arc<MemPool>, history: Arc<History>, block_num: Arc<BlockNum>, consts: Constants) -> Task {
-		println!("out maker task2");
+		info!("out maker task");
 		Task::rpt_task(move || {
-			println!("in maker task2");
+			println!("in maker task");
 
 			// Check if the simulation is ending
 			if block_num.read_count() > consts.num_blocks {
 				// exit the thread
 				println!("Exiting maker_task");
-				loop {}
 				// std::process::exit(1)
 			}
 

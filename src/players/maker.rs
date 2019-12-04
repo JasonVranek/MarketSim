@@ -64,7 +64,7 @@ impl Maker {
 	}
 
 	// Calculates gas price based on maker type
-	pub fn calc_gas(&self, mean_gas: f64, dists: &Distributions, consts: &Constants) -> f64 {
+	pub fn calc_gas(&self, mean_gas: f64, _dists: &Distributions, consts: &Constants) -> f64 {
 		match self.maker_type {
 			MakerT::Aggressive => {
 			// Aggressive players will place new gas price > mean
@@ -84,11 +84,11 @@ impl Maker {
 	// Calculates a price offset based on the makers type
 	// Given a price calculates the bid ask prices using maker type to determine spread
 	// returns tuple (bid_price, ask_price, bid_inv, ask_inv)
-	pub fn calc_price_inv(&self, price: Option<f64>, dists: &Distributions, consts: &Constants, ask_vol: f64, bid_vol: f64) -> Option<(f64, f64, f64, f64)> {
+	pub fn calc_price_inv(&self, price: Option<f64>, dists: &Distributions, consts: &Constants, _ask_vol: f64, _bid_vol: f64) -> Option<(f64, f64, f64, f64)> {
 		match price {
 			// inf_fv = the inferred fundamental value
 			Some(inf_fv) => {
-				let mut spread;
+				let spread;
 				match self.maker_type {
 					MakerT::Aggressive => {
 						spread = consts.tick_size;
@@ -145,7 +145,7 @@ impl Maker {
 
 	pub fn new_orders(&self, data: &PriorData, inference: &LikelihoodStats, dists: &Distributions, consts: &Constants) -> Option<(Order, Order)> {
 		// look at the weighted average price of the mempool, exit if no orders have been sent to pool
-		let wtd_pool_price = match inference.weighted_price {
+		let _wtd_pool_price = match inference.weighted_price {
 			Some(price) => price,
 			None => return None,
 		};
@@ -202,14 +202,6 @@ impl Maker {
 		);
 
 		Some((bid_order, ask_order))
-	}
-
-	pub fn risk_averse_order(&self, data: &PriorData, inference: &LikelihoodStats, dists: &Distributions, consts: &Constants) -> Option<Order> {
-		unimplemented!()
-	}
-
-	pub fn random_order(&self, data: &PriorData, inference: &LikelihoodStats, dists: &Distributions, consts: &Constants) -> Option<Order> {
-		unimplemented!()
 	}
 }
 
