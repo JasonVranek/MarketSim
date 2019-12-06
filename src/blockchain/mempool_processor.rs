@@ -42,19 +42,19 @@ impl MemPoolProcessor {
 	// either of OrderType::{Enter, Update, Cancel}. Each order will
 	// modify the state of either the Bids or Asks Book, but must
 	// first acquire a lock on the respective book. 
-	pub fn seq_process_orders(frame: &mut Vec<Order>, bids: Arc<Book>, asks: Arc<Book>, m_t: MarketType) -> Option<Vec<TradeResults>> {
+	pub fn seq_process_orders(frame: &mut Vec<Order>, bids: Arc<Book>, asks: Arc<Book>, _m_t: MarketType) -> Option<Vec<TradeResults>> {
 		// Create vec to return results of all the crossings
 		let mut results: Vec<TradeResults> = Vec::new();
 		for order in frame.drain(..) {
-			println!("Processing order:{:?}", order);
+			// println!("Processing order:{:?}", order);
 			match order.order_type {
 				OrderType::Enter => {
-					if let Some(result) = MemPoolProcessor::seq_process_enter(Arc::clone(&bids), Arc::clone(&asks), order, m_t.clone()) {
+					if let Some(result) = MemPoolProcessor::seq_process_enter(Arc::clone(&bids), Arc::clone(&asks), order, _m_t.clone()) {
 						results.push(result);
 					}
 				}
-				OrderType::Update => MemPoolProcessor::seq_process_update(Arc::clone(&bids), Arc::clone(&asks), order, m_t.clone()),
-				OrderType::Cancel => MemPoolProcessor::seq_process_cancel(Arc::clone(&bids), Arc::clone(&asks), order, m_t.clone()),
+				OrderType::Update => MemPoolProcessor::seq_process_update(Arc::clone(&bids), Arc::clone(&asks), order, _m_t.clone()),
+				OrderType::Cancel => MemPoolProcessor::seq_process_cancel(Arc::clone(&bids), Arc::clone(&asks), order, _m_t.clone()),
 			};
 		}
 		if results.len() == 0 {

@@ -92,6 +92,21 @@ impl Miner {
 		}
 
 	}
+
+	// Iterate through each order in frame and make a vec to update the
+	// players balances in the clearing house
+	pub fn collect_gas(&mut self) -> (Vec<(String, f64)>, f64) {
+		let mut to_update = Vec::<(String, f64)>::new();
+		let mut total_gas = 0.0;
+		for order in self.frame.iter() {
+			let gas = order.gas;
+			total_gas += gas;
+			to_update.push((order.trader_id.clone(), gas));
+		}
+		to_update.push((self.trader_id.clone(), -total_gas));
+
+		(to_update, total_gas)
+	}
 }
 
 

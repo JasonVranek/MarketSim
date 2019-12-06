@@ -23,6 +23,7 @@ use log::{log, Level};
 /// ClearingHouse is a HashMap indexed by each player's trader_id
 pub struct ClearingHouse {
 	pub players: Mutex<HashMap<String, Box<dyn Player + Send>>>,
+	pub gas_fees: Mutex<Vec<f64>>
 }
 
 
@@ -31,7 +32,8 @@ impl ClearingHouse {
 	/// Create a new ClearingHouse to store player data
 	pub fn new() -> Self {
 		ClearingHouse {
-			players: Mutex::new(HashMap::new()),	
+			players: Mutex::new(HashMap::new()),
+			gas_fees: Mutex::new(Vec::<f64>::new()),	
 		}
 	}
 
@@ -273,8 +275,8 @@ impl ClearingHouse {
 						if pu.payer_id == id_check {
 							// Update asker: +bal, -inv
 							let asker_id = pu.vol_filler_id;
-							if let Some((new_bal, new_inv)) = self.update_player(asker_id.clone(), payment, -volume) {
-								println!("Updated {}. bal=>{}, inv=>{}", asker_id.clone(), new_bal, new_inv);
+							if let Some((_new_bal, _new_inv)) = self.update_player(asker_id.clone(), payment, -volume) {
+								// println!("Updated {}. bal=>{}, inv=>{}", asker_id.clone(), _new_bal, _new_inv);
 							}
 							// Subtract vol from the trader's order
 							self.update_player_order_vol(asker_id.clone(), pu.vol_filler_order_id, -volume).expect("Failed to update");
@@ -284,8 +286,8 @@ impl ClearingHouse {
 							// Update bidder: -bal, +inv
 							let bidder_id = pu.payer_id;
 							
-							if let Some((new_bal, new_inv)) = self.update_player(bidder_id.clone(), -payment, volume) {
-								println!("Updated {}. bal=>{}, inv=>{}", bidder_id.clone(), new_bal, new_inv);
+							if let Some((_new_bal, _new_inv)) = self.update_player(bidder_id.clone(), -payment, volume) {
+								// println!("Updated {}. bal=>{}, inv=>{}", bidder_id.clone(), _new_bal, _new_inv);
 							}
 
 							// Subtract vol from the trader's order
@@ -347,8 +349,8 @@ impl ClearingHouse {
 	/// Adds volume to a trader's order to reflect changes in the order book. 
 	/// If they updated volume <=0, the order is dropped from the player's list
 	pub fn update_player_order_vol(&self, trader_id: String, order_id: u64, vol_to_add: f64) -> Result<(), &'static str> {
-		println!("Updating {}'s order {} volume by {}", trader_id, order_id, vol_to_add);
-		self.report_player(trader_id.clone());
+		// println!("Updating {}'s order {} volume by {}", trader_id, order_id, vol_to_add);
+		// self.report_player(trader_id.clone());
 		let mut players = self.players.lock().unwrap();
 		if let Some(player) = players.get_mut(&trader_id) {
 			player.update_order_vol(order_id, vol_to_add)
@@ -402,6 +404,15 @@ impl ClearingHouse {
 		}
 		sum
 	}
+
+	pub fn apply_gas_fees(&self, to_change: Vec<(String, f64)>, total: f64) {
+		// Add the gas fees for this batch
+		self.gas_fees.lock().expect("apply_gas_fees").push(total);
+		for c in to_change {
+			// Search for c.0 = trader_id, subtract c.1 = gas fee
+			self.update_player_bal(c.0, -c.1);
+		}
+	}
 }
 
 
@@ -410,6 +421,7 @@ impl ClearingHouse {
 mod tests {
 	use super::*;
 	use std::sync::Arc;
+	use crate::players::maker::{Maker, MakerT};
 
 	#[test]
 	fn test_ch() {

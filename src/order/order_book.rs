@@ -104,9 +104,7 @@ impl Book {
 
 	pub fn cancel_order_by_id(&self, id: u64) -> Result<(), &'static str> {
 		// Acquire the lock
-        println!("looking for lock");
         let mut orders = self.orders.lock().expect("couldn't acquire lock cancelling order");
-        println!("got lock");
         // Search for existing order's index
         let order_index: Option<usize> = orders.iter().position(|o| &o.order_id == &id);
 

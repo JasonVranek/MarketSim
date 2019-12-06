@@ -50,13 +50,15 @@ fn main() {
 			num_investors: 10,
 			num_makers: 5,
 			block_size: 1000,
-			num_blocks: 50,
+			num_blocks: 1,
 			market_type: MarketType::KLF,
 			front_run_perc: 1.0,
 			flow_order_offset: 5.0,
 			maker_prop_delay: 200,	// 200 ms delay after block for makers to act
 			tick_size: 1.0,
 			maker_enter_prob: 0.25,
+			max_held_inventory: 1000.0,
+			maker_inv_tax: 0.01,
 		};
 
 	
@@ -109,6 +111,8 @@ fn main() {
 
 
 	info!("Done running simulation. Saving data...");
+
+	println!("{:?}", simulation.house.gas_fees);
 
 	let s = format!("Experiment ending at: {:?}", get_time());
 	log_order_book!(s);

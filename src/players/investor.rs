@@ -95,7 +95,7 @@ impl Player for Investor {
 		
 		if let Some(i) = order_index {
         	orders[i].quantity += vol_to_add;
-        	println!("new quantity: {}", orders[i].quantity);
+        	// println!("new quantity: {}", orders[i].quantity);
         	if orders[i].quantity <= 0.0 {
         		orders.remove(i);
         	}

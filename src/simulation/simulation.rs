@@ -150,7 +150,6 @@ impl Simulation {
 	pub fn investor_task(dists: Distributions, house: Arc<ClearingHouse>, mempool: Arc<MemPool>, history: Arc<History>, block_num: Arc<BlockNum>, consts: Constants) -> JoinHandle<()> {
 		thread::spawn(move || {       
 			loop {
-				println!("In inv task: {:?}", consts.market_type);
 				// Check if the simulation is ending
 				if block_num.read_count() > consts.num_blocks {
 					// exit the thread
@@ -232,9 +231,8 @@ impl Simulation {
 
 	pub fn miner_task(mut miner: Miner, dists: Distributions, house: Arc<ClearingHouse>, 
 		mempool: Arc<MemPool>, bids: Arc<Book>, asks: Arc<Book>, history: Arc<History>, block_num: Arc<BlockNum>, consts: Constants) -> Task {
-		println!("out miner task");
 		Task::rpt_task(move || {
-			println!("in miner task, {:?}", block_num.read_count());
+			// println!("in miner task, {:?}", block_num.read_count());
 			
 			// Check if the simulation is ending
 			if block_num.read_count() > consts.num_blocks {
@@ -242,6 +240,10 @@ impl Simulation {
 				println!("Exiting miner_task");
 				// std::process::exit(1)
 			}
+
+			// Collect the gas from the frame
+			let (gas_changes, total_gas) = miner.collect_gas();
+			house.apply_gas_fees(gas_changes, total_gas);
 
 			// Publish the miner's current frame
 			if let Some(vec_results) = miner.publish_frame(Arc::clone(&bids), Arc::clone(&asks), consts.market_type) {
@@ -279,22 +281,24 @@ impl Simulation {
 			miner.make_frame(Arc::clone(&mempool), consts.block_size);
 
 			// Miner will front-run with some probability: 
-			let sample = dists.sample_dist(DistReason::MinerFrontRun).expect("Couldn't get miner front run delay");	
-			if sample <= consts.front_run_perc {
-				match miner.front_run() {
-					Ok(order) => {
-						println!("Miner inserted a front-run order: {}", order.order_id);
-						// Log the order as if it were sent to the mempool
-						history.mempool_order(order.clone());
+			match Distributions::do_with_prob(consts.front_run_perc) {
+				true => {
+					match miner.front_run() {
+						Ok(order) => {
+							println!("Miner inserted a front-run order: {}", order.order_id);
+							// Log the order as if it were sent to the mempool
+							history.mempool_order(order.clone());
 
-						// Register the new order to the ClearingHouse
-						house.new_order(order).expect("Couldn't add front-run order to CH");
-						
-					},
-					Err(e) => {
-						println!("{:?}", e);
+							// Register the new order to the ClearingHouse
+							house.new_order(order).expect("Couldn't add front-run order to CH");
+							
+						},
+						Err(_e) => {
+							// println!("{:?}", _e);
+						}
 					}
 				}
+				false => {},
 			}
 
 			// Wait until the next block publication time
@@ -304,9 +308,7 @@ impl Simulation {
 
 
 	pub fn maker_task(dists: Distributions, house: Arc<ClearingHouse>, mempool: Arc<MemPool>, history: Arc<History>, block_num: Arc<BlockNum>, consts: Constants) -> Task {
-		info!("out maker task");
 		Task::rpt_task(move || {
-			println!("in maker task");
 
 			// Check if the simulation is ending
 			if block_num.read_count() > consts.num_blocks {
@@ -328,7 +330,7 @@ impl Simulation {
 
 			// use History to produce inference and decision data
 			let (decision_data, inference_data) = history.produce_data(pool);
-			println!("data=> {:?}, inference=> {:?}", decision_data, inference_data);
+			// println!("data=> {:?}, inference=> {:?}", decision_data, inference_data);
 
 			// iterate through each maker and produce an order using the decision and inference data
 			for id in maker_ids {
@@ -340,7 +342,7 @@ impl Simulation {
 
 				// Each maker interprets the data to produce their order based on their type 
 				if let Some((bid_order, ask_order)) = house.maker_new_orders(id.clone(), &decision_data, &inference_data, &dists, &consts) {
-					println!("BIDORDER:{:?} \n, ASKORDER:{:?}", bid_order, ask_order);
+					// println!("BIDORDER:{:?} \n, ASKORDER:{:?}", bid_order, ask_order);
 					
 					// Add the order to the ClearingHouse which will register to the correct maker
 					match house.new_order(bid_order.clone()) {

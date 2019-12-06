@@ -82,6 +82,26 @@ impl Maker {
 		}
 	}
 
+	pub fn normalize_inv(&self, consts: &Constants) -> f64 {
+		let inv = self.inventory;
+		if inv < 0.0 {
+			// return a ratio between [0.5, 1.0]
+			let ratio = 0.5 + (inv * 0.5) / consts.max_held_inventory;
+			if ratio > 1.0 {
+				return 1.0;
+			}
+			return ratio;
+
+		} else {
+			// return a ratio between [0.0, 0.5]
+			let ratio = 0.0 + (inv * 0.5) / consts.max_held_inventory;
+			if ratio > 0.5 {
+				return 0.5;
+			}
+			return ratio;
+		}
+	}
+
 	// Calculates a price offset based on the makers type
 	// Given a price calculates the bid ask prices using maker type to determine spread
 	// returns tuple (bid_price, ask_price, bid_inv, ask_inv)
@@ -99,8 +119,7 @@ impl Maker {
 						spread = 2.0 * consts.tick_size;
 					},
 					MakerT::Random => {
-						let offset = Distributions::sample_uniform(0.01, consts.tick_size, None);
-						spread = consts.tick_size + offset;
+						spread = Distributions::sample_normal(0.1 * consts.tick_size, consts.tick_size, None).abs();
 					},
 				}
 
@@ -114,25 +133,27 @@ impl Maker {
 					let ask_inv = bid_inv;
 					Some((bid_price, ask_price, bid_inv, ask_inv))
 				} else if cur_inv < 0.0 {
-					// Maker has negative inventory, so shift spread for better bid price
-					let ratio = 0.75; // modify later!
+					// Maker has negative inventory, so shift spread for better bid price, worse ask price
+					let ratio = self.normalize_inv(&consts); 
 					let bid_spread = ratio * spread;
 					let ask_spread = (1.0 - ratio) * spread;
 					let bid_price = inf_fv - bid_spread;
 					let ask_price = inf_fv + ask_spread;
-					let bid_inv = ratio * dists.sample_dist(DistReason::MakerOrderVolume).expect("MakerOrderVolume");
-					let ask_inv = (1.0 - ratio) * dists.sample_dist(DistReason::MakerOrderVolume).expect("MakerOrderVolume");
+					let inv_amt = dists.sample_dist(DistReason::MakerOrderVolume).expect("MakerOrderVolume");
+					let bid_inv = ratio * inv_amt;
+					let ask_inv = (1.0 - ratio) * inv_amt;
 					Some((bid_price, ask_price, bid_inv, ask_inv))
 
 				} else {
-					// Maker has positive inventory, so shift spread for better ask price 
-					let ratio = 0.25; // modify later!
+					// Maker has positive inventory, so shift spread for better ask price, worse bid price
+					let ratio = self.normalize_inv(&consts); 
 					let bid_spread = ratio * spread;
 					let ask_spread = (1.0 - ratio) * spread;
 					let bid_price = inf_fv - bid_spread;
 					let ask_price = inf_fv + ask_spread;
-					let bid_inv = ratio * dists.sample_dist(DistReason::MakerOrderVolume).expect("MakerOrderVolume");
-					let ask_inv = (1.0 - ratio) * dists.sample_dist(DistReason::MakerOrderVolume).expect("MakerOrderVolume");
+					let inv_amt = dists.sample_dist(DistReason::MakerOrderVolume).expect("MakerOrderVolume");
+					let bid_inv = ratio * inv_amt;
+					let ask_inv = (1.0 - ratio) * inv_amt;
 					Some((bid_price, ask_price, bid_inv, ask_inv))
 				}
 			},
@@ -142,11 +163,9 @@ impl Maker {
 	}
 
 
-	
-
 	pub fn new_orders(&self, data: &PriorData, inference: &LikelihoodStats, dists: &Distributions, consts: &Constants) -> Option<(Order, Order)> {
 		// look at the weighted average price of the mempool, exit if no orders have been sent to pool
-		let _wtd_pool_price = match inference.weighted_price {
+		let wtd_pool_price = match inference.weighted_price {
 			Some(price) => price,
 			None => return None,
 		};
@@ -164,9 +183,9 @@ impl Maker {
 			MarketType::KLF => ExchangeType::FlowOrder,
 		};
 
-		// Calculate the bid and ask prices offset from weighted avg price based on maker type
+		// Calculate the bid and ask prices offset from weighted avg price of all seen orders based on maker type
 		// And the respective quantity for each order
-		let (bid_price, ask_price, bid_amt, ask_amt) = match self.calc_price_inv(wtd_last_book_price, dists, consts, ask_vol, bid_vol) {
+		let (bid_price, ask_price, bid_amt, ask_amt) = match self.calc_price_inv(Some(wtd_pool_price), dists, consts, ask_vol, bid_vol) {
 			Some((bp, ap, ba, aa)) => (bp, ap, ba, aa),
 			None => return None,
 		};

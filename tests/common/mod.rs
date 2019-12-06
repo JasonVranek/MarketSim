@@ -217,7 +217,7 @@ pub fn setup_investor(trader_id: String) -> Investor {
 pub fn setup_n_makers(n: usize) -> Vec<Maker> {
 	let mut vec = Vec::<Maker>::new();
 	for i in 0..n {
-		vec.push(Maker::new(format!("MKR{}", i)));
+		vec.push(Maker::new(format!("MKR{}", i), Maker::gen_rand_type()));
 	}
 	vec
 }

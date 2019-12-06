@@ -18,12 +18,14 @@ pub struct Constants {
 	pub maker_prop_delay: u64,
 	pub tick_size: f64,
 	pub maker_enter_prob: f64,
+	pub max_held_inventory: f64,
+	pub maker_inv_tax: f64,
 }
 
 impl Constants {
 	pub fn new(b_i: u64, n_i: u64, n_m: u64, b_s: usize, n_b: u64, 
 		m_t: MarketType, f_r: f64, f_o_o: f64, m_p_d: u64, t_s: f64, 
-		mep: f64) -> Constants {
+		mep: f64, mhi: f64, mit: f64) -> Constants {
 		Constants {
 			batch_interval: b_i,
 			num_investors: n_i,
@@ -35,7 +37,9 @@ impl Constants {
 			flow_order_offset: f_o_o,
 			maker_prop_delay: m_p_d,
 			tick_size: t_s,
-			maker_enter_prob: mep
+			maker_enter_prob: mep,
+			max_held_inventory: mhi,
+			maker_inv_tax: mit,
 		}
 	}
 }

@@ -640,7 +640,7 @@ impl Auction {
 	    		// We are right of the crossing point
 	    		right = index;
 	    	} else {
-	    		println!("Found cross at: {}", index);
+	    		println!("Found cross at: {}\n", index);
 	    		let mut result = TradeResults::new(MarketType::KLF, Some(index), dem, sup, None);
 	    		// Push the player updates for updating the player's state in ClearingHouse
 	    		let player_updates = Auction::flow_player_updates(index, Arc::clone(&bids), Arc::clone(&asks));
@@ -725,9 +725,9 @@ impl Auction {
 					));
 				// Modify the order in the order book
 				bid.quantity -= v;
-				println!("bid:{}, p_l: {}, p_h:{}, trade_vol:{}, old_vol:{}, new_vol:{}", bid.order_id, bid.p_low, bid.p_high, v, bid.quantity + v, bid.quantity);
+				// println!("bid:{}, p_l: {}, p_h:{}, trade_vol:{}, old_vol:{}, new_vol:{}", bid.order_id, bid.p_low, bid.p_high, v, bid.quantity + v, bid.quantity);
 				if bid.quantity <= 0.0 {
-					println!("cancelling flow bid");
+					// println!("cancelling flow bid");
 					cancel_bids.push(bid.order_id);
 				}
 			}
@@ -747,15 +747,15 @@ impl Auction {
 					));
 				// Modify the order in the order book
 				ask.quantity -= v;
-				println!("ask:{}, p_l: {}, p_h:{}, trade_vol:{}, old_vol:{}, new_vol:{}", ask.order_id, ask.p_low, ask.p_high, v, ask.quantity + v, ask.quantity);
+				// println!("ask:{}, p_l: {}, p_h:{}, trade_vol:{}, old_vol:{}, new_vol:{}", ask.order_id, ask.p_low, ask.p_high, v, ask.quantity + v, ask.quantity);
 				if ask.quantity <= 0.0 {
-					println!("cancelling flow ask");
+					// println!("cancelling flow ask");
 					cancel_asks.push(ask.order_id);
 				}
 			}
 		}
 
-		println!("cancelling bids:{:?} and asks:{:?}", cancel_bids, cancel_asks);
+		// println!("cancelling bids:{:?} and asks:{:?}", cancel_bids, cancel_asks);
 
 		// Cancel all of the orders that have been fully filled
 		for id in cancel_bids {
@@ -764,8 +764,6 @@ impl Auction {
 		for id in cancel_asks {
 			asks.cancel_order_by_id(id).expect("Error cancelling filled flow order");
 		}
-
-		println!("here");
 
 		updates
 	}
