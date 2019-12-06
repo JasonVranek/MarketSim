@@ -3,6 +3,7 @@ extern crate tokio;
 
 use flow_rs::exchange::MarketType;
 use flow_rs::simulation::simulation_config::Constants;
+use flow_rs::simulation::simulation_history::UpdateReason;
 use flow_rs::controller::Controller;
 use flow_rs::simulation::simulation::{Simulation};
 use flow_rs::simulation::config_parser::*;
@@ -50,7 +51,7 @@ fn main() {
 			num_investors: 10,
 			num_makers: 5,
 			block_size: 1000,
-			num_blocks: 1,
+			num_blocks: 10,
 			market_type: MarketType::KLF,
 			front_run_perc: 1.0,
 			flow_order_offset: 5.0,
@@ -67,6 +68,9 @@ fn main() {
 
 	// Initial state of the sim
 	let (simulation, miner) = Simulation::init_simulation(distributions, consts.clone());
+
+	// Log the intial state of the players
+	simulation.house.log_all_players(UpdateReason::Initial);
 
 	
 	// Initialize an investor thread to repeat at intervals based on supplied distributions
@@ -114,6 +118,9 @@ fn main() {
 
 	println!("{:?}", simulation.house.gas_fees);
 
+	// Log the intial state of the players
+	simulation.house.log_all_players(UpdateReason::Final);
+
 	let s = format!("Experiment ending at: {:?}", get_time());
 	log_order_book!(s);
 	log_mempool_data!(s);
@@ -124,7 +131,7 @@ fn main() {
 
 fn setup_log_headers(consts: &Constants) {
 	// Setup the logfile headers
-	log_player_data!(format!("time,trader_id,player_type,balance,inventory,orders,maker_type,"));
+	log_player_data!(format!("time,reason,trader_id,player_type,balance,inventory,orders,"));
     log_mempool_data!(format!("time,trader_id,order_id,order_type,trade_type,ex_type,p_low,p_high,price,quantity,gas,"));
 
     match consts.market_type {

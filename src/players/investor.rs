@@ -1,3 +1,4 @@
+use crate::simulation::simulation_history::UpdateReason;
 use crate::utility::get_time;
 use crate::players::{Player,TraderT};
 use std::sync::Mutex;
@@ -114,14 +115,15 @@ impl Player for Investor {
 		copied
 	}
 
-	fn log_to_csv(&self) -> String {
-		format!("{:?},{},{:?},{},{},{:?},", 
+	fn log_to_csv(&self, reason: UpdateReason) -> String {
+		format!("{:?},{:?},{},{:?},{},{},{:?},", 
 				get_time(), 
+				reason,
 				self.trader_id.clone(),
 				self.player_type.clone(),
 				self.balance,
 				self.inventory,
-				self.orders)
+				self.orders.lock().expect("log_to_csv"))
 	}
 
 }

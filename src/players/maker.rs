@@ -1,3 +1,4 @@
+use crate::simulation::simulation_history::UpdateReason;
 use crate::utility::get_time;
 use crate::simulation::simulation_config::{Distributions, Constants, DistReason};
 use crate::simulation::simulation_history::{PriorData, LikelihoodStats};
@@ -129,8 +130,10 @@ impl Maker {
 					// Maker has no inventory so center prices around inferred fund value
 					let bid_price = inf_fv - (spread / 2.0);
 					let ask_price = inf_fv + (spread / 2.0);
-					let bid_inv = dists.sample_dist(DistReason::MakerOrderVolume).expect("MakerOrderVolume");
-					let ask_inv = bid_inv;
+					// let bid_inv = dists.sample_dist(DistReason::MakerOrderVolume).expect("MakerOrderVolume");
+					// let ask_inv = bid_inv;
+					let bid_inv = 0.5;
+					let ask_inv = 0.5;
 					Some((bid_price, ask_price, bid_inv, ask_inv))
 				} else if cur_inv < 0.0 {
 					// Maker has negative inventory, so shift spread for better bid price, worse ask price
@@ -139,9 +142,11 @@ impl Maker {
 					let ask_spread = (1.0 - ratio) * spread;
 					let bid_price = inf_fv - bid_spread;
 					let ask_price = inf_fv + ask_spread;
-					let inv_amt = dists.sample_dist(DistReason::MakerOrderVolume).expect("MakerOrderVolume");
-					let bid_inv = ratio * inv_amt;
-					let ask_inv = (1.0 - ratio) * inv_amt;
+					// let inv_amt = dists.sample_dist(DistReason::MakerOrderVolume).expect("MakerOrderVolume");
+					// let bid_inv = ratio * inv_amt;
+					// let ask_inv = (1.0 - ratio) * inv_amt;
+					let bid_inv = ratio;
+					let ask_inv = 1.0 - ratio;
 					Some((bid_price, ask_price, bid_inv, ask_inv))
 
 				} else {
@@ -151,9 +156,11 @@ impl Maker {
 					let ask_spread = (1.0 - ratio) * spread;
 					let bid_price = inf_fv - bid_spread;
 					let ask_price = inf_fv + ask_spread;
-					let inv_amt = dists.sample_dist(DistReason::MakerOrderVolume).expect("MakerOrderVolume");
-					let bid_inv = ratio * inv_amt;
-					let ask_inv = (1.0 - ratio) * inv_amt;
+					// let inv_amt = dists.sample_dist(DistReason::MakerOrderVolume).expect("MakerOrderVolume");
+					// let bid_inv = ratio * inv_amt;
+					// let ask_inv = (1.0 - ratio) * inv_amt;
+					let bid_inv = ratio;
+					let ask_inv = 1.0 - ratio;
 					Some((bid_price, ask_price, bid_inv, ask_inv))
 				}
 			},
@@ -171,7 +178,7 @@ impl Maker {
 		};
 			
 		// Look at the last public order book average and mean gas
-		let wtd_last_book_price = data.current_wtd_price;
+		// let _wtd_last_book_price = data.current_wtd_price;
 		let wtd_gas = data.mean_pool_gas;
 		let ask_vol = data.asks_volume;
 		let bid_vol = data.bids_volume;
@@ -303,15 +310,15 @@ impl Player for Maker {
 		copied
 	}
 
-	fn log_to_csv(&self) -> String {
-		format!("{:?},{},{:?},{},{},{:?},{:?},", 
+	fn log_to_csv(&self, reason: UpdateReason) -> String {
+		format!("{:?},{:?},{},{:?},{},{},{:?},", 
 				get_time(), 
+				reason,
 				self.trader_id.clone(),
 				self.player_type.clone(),
 				self.balance,
 				self.inventory,
-				self.orders,
-				self.maker_type.clone())
+				self.orders.lock().expect("log_to_csv"))
 	}
 
 }

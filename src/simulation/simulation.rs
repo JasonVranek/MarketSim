@@ -338,6 +338,10 @@ impl Simulation {
 
 			// iterate through each maker and produce an order using the decision and inference data
 			for id in maker_ids {
+				// Only make new orders if the maker currently has none in the book
+				if house.get_player_order_count(&id) != 0 {
+					continue;
+				}
 				// Randomly choose whether the maker should try to trade this block
 				match Distributions::do_with_prob(consts.maker_enter_prob) {
 					true => {},

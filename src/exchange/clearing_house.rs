@@ -1,5 +1,5 @@
 use crate::simulation::simulation_config::{Distributions, Constants};
-use crate::simulation::simulation_history::{PriorData, LikelihoodStats};
+use crate::simulation::simulation_history::{PriorData, LikelihoodStats, UpdateReason};
 use crate::exchange::exchange_logic::TradeResults;
 use crate::exchange::MarketType;
 use crate::order::order::{Order};
@@ -104,6 +104,12 @@ impl ClearingHouse {
 		} 
 	}
 
+	pub fn get_player_order_count(&self, id: &String) -> usize {
+		let players = self.players.lock().unwrap();
+		let p = players.get(id).expect("get_player_order_count");
+		p.num_orders()
+	}
+
 	// Shuffles through the players matching the player_type and returns their id
 	pub fn get_rand_player_id(&self, player_type: TraderT) -> Option<String> {
 		let players = self.players.lock().unwrap();
@@ -158,13 +164,13 @@ impl ClearingHouse {
 
 	/// Updates both a single player's balance and inventory
 	/// Returns tuple Option<(updated_bal: f64, updated_inv: f64)>
-	pub fn update_player(&self, id: String, bal_to_add: f64, inv_to_add: f64) -> Option<(f64, f64)>{
+	pub fn update_player(&self, id: String, bal_to_add: f64, inv_to_add: f64, reason: UpdateReason) -> Option<(f64, f64)>{
 		let mut players = self.players.lock().unwrap();
 		match players.get_mut(&id) {
 			Some(player) => { 
 				player.update_inv(inv_to_add);
 				player.update_bal(bal_to_add);
-				log_player_data!(player.log_to_csv());
+				log_player_data!(player.log_to_csv(reason));
 				Some((player.get_bal(), player.get_inv()))
 			}
 			None => None,
@@ -194,7 +200,7 @@ impl ClearingHouse {
 						continue;
 					}
 					let payment = pu.price * volume;
-					if let Some((new_bal, new_inv)) = self.update_player(bidder_id.clone(), -payment, volume) {
+					if let Some((new_bal, new_inv)) = self.update_player(bidder_id.clone(), -payment, volume, UpdateReason::Transact) {
 						println!("Updated {}. bal=>{}, inv=>{}", bidder_id.clone(), new_bal, new_inv);
 					} else {
 						self.report_player(bidder_id.clone());
@@ -206,7 +212,7 @@ impl ClearingHouse {
 
 					// Update asker: +bal, -inv
 					let asker_id = pu.vol_filler_id;
-					if let Some((new_bal, new_inv)) = self.update_player(asker_id.clone(), payment, -volume) {
+					if let Some((new_bal, new_inv)) = self.update_player(asker_id.clone(), payment, -volume, UpdateReason::Transact) {
 							println!("Updated {}. bal=>{}, inv=>{}", asker_id.clone(), new_bal, new_inv);
 					} else {
 						self.report_player(asker_id.clone());
@@ -234,7 +240,7 @@ impl ClearingHouse {
 						continue;
 					}
 					let payment = pu.price * volume;
-					if let Some((new_bal, new_inv)) = self.update_player(bidder_id.clone(), -payment, volume) {
+					if let Some((new_bal, new_inv)) = self.update_player(bidder_id.clone(), -payment, volume, UpdateReason::Transact) {
 						println!("Updated {}. bal=>{}, inv=>{}", bidder_id.clone(), new_bal, new_inv);
 					} else {
 						panic!("failed to update {}'s balance/inventory", bidder_id);
@@ -245,7 +251,7 @@ impl ClearingHouse {
 
 					// Update asker: +bal, -inv
 					let asker_id = pu.vol_filler_id;
-					if let Some((new_bal, new_inv)) = self.update_player(asker_id.clone(), payment, -volume) {
+					if let Some((new_bal, new_inv)) = self.update_player(asker_id.clone(), payment, -volume, UpdateReason::Transact) {
 							println!("Updated {}. bal=>{}, inv=>{}", asker_id.clone(), new_bal, new_inv);
 					} else {
 						panic!("failed to update {}'s balance/inventory", bidder_id);
@@ -275,7 +281,7 @@ impl ClearingHouse {
 						if pu.payer_id == id_check {
 							// Update asker: +bal, -inv
 							let asker_id = pu.vol_filler_id;
-							if let Some((_new_bal, _new_inv)) = self.update_player(asker_id.clone(), payment, -volume) {
+							if let Some((_new_bal, _new_inv)) = self.update_player(asker_id.clone(), payment, -volume, UpdateReason::Transact) {
 								// println!("Updated {}. bal=>{}, inv=>{}", asker_id.clone(), _new_bal, _new_inv);
 							}
 							// Subtract vol from the trader's order
@@ -286,7 +292,7 @@ impl ClearingHouse {
 							// Update bidder: -bal, +inv
 							let bidder_id = pu.payer_id;
 							
-							if let Some((_new_bal, _new_inv)) = self.update_player(bidder_id.clone(), -payment, volume) {
+							if let Some((_new_bal, _new_inv)) = self.update_player(bidder_id.clone(), -payment, volume, UpdateReason::Transact) {
 								// println!("Updated {}. bal=>{}, inv=>{}", bidder_id.clone(), _new_bal, _new_inv);
 							}
 
@@ -419,7 +425,7 @@ impl ClearingHouse {
 					let _bef = player.get_bal();
 					player.update_bal(-c.1);
 					// println!("{}, gas:{} before: {}, after: {}\n", c.0, c.1, _bef, player.get_bal());
-					log_player_data!(format!("{}gas,", player.log_to_csv()));
+					log_player_data!(player.log_to_csv(UpdateReason::Gas));
 				}
 				None => {},
 			}
@@ -438,11 +444,25 @@ impl ClearingHouse {
 					let tax_amt = (player.get_inv() * tax).abs();
 					player.update_bal(-tax_amt);
 					// println!("{} tax:{}, before: {}, after: {}\n", id, tax_amt, _bef, player.get_bal());
-					log_player_data!(format!("{}tax,", player.log_to_csv()));
+					log_player_data!(player.log_to_csv(UpdateReason::Tax));
 				}
 				None => {},
 			}
 		}
+	}
+
+
+	// log all of the initial player states
+	pub fn log_all_players(&self, reason: UpdateReason) {
+		let players = self.players.lock().unwrap();
+		for (_id, player) in players.iter() {
+    		log_player_data!(player.log_to_csv(reason));
+		}
+	}
+
+
+	pub fn liquify(&self) {
+		unimplemented!()
 	}
 }
 
@@ -489,7 +509,7 @@ mod tests {
 		}
 
 		// Test updating both
-		if let Some((bal, inv)) = ch.update_player(format!("{:?}", "SquillyFob"), -40.0, 20.0) {
+		if let Some((bal, inv)) = ch.update_player(format!("{:?}", "SquillyFob"), -40.0, 20.0, UpdateReason::Transact) {
 			assert_eq!(inv, 20.0);
 			assert_eq!(bal, -40.0);
 		} else {

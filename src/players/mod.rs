@@ -1,3 +1,4 @@
+use crate::simulation::simulation_history::UpdateReason;
 use crate::order::order::Order;
 use std::any::Any;
 
@@ -53,7 +54,7 @@ pub trait Player {
 
 	fn as_any(&self) -> &dyn Any;
 
-	fn log_to_csv(&self) -> String;
+	fn log_to_csv(&self, reason: UpdateReason) -> String;
 }
 
 

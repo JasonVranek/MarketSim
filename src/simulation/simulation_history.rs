@@ -7,6 +7,18 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 
+
+// Reasons a player's updated state
+#[derive(Clone, Debug, Copy)]
+pub enum UpdateReason {
+	Initial,	// Initial player state
+	Tax,		// Player was updated because of tax
+	Gas,		// Player was updated because of gas
+	Transact,	// Player transacted
+	Liquify,	// Player liquified their inventory
+	Final,		// Final player state
+}
+
 // Tracks the essential information from an order in the order book
 #[derive(Clone)]
 pub struct Entry {
