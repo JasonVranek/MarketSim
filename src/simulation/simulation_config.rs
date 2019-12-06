@@ -132,6 +132,15 @@ impl Distributions {
 		}
 	}
 
+	// Samples the distribution based on the config for the respsective DistReason
+	pub fn read_dist_params(&self, which_dist: DistReason) -> (f64, f64) {
+		// Get the config: (f64, f64, DistType) from our list of configs
+		let dist_entry = self.dists.get(which_dist as usize).expect("read_dist_params");
+		let v1 = dist_entry.0;
+		let v2 = dist_entry.1;
+		(v1, v2)
+	}
+
 	pub fn fifty_fifty() -> bool {
 		let val = rand::distributions::Uniform::new(0.0, 1.0).sample(&mut thread_rng());
 		if val > 0.50 {

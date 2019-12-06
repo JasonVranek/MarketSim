@@ -461,8 +461,24 @@ impl ClearingHouse {
 	}
 
 
-	pub fn liquify(&self) {
-		unimplemented!()
+	pub fn liquidate(&self, fund_val: f64) {
+		let mut players = self.players.lock().unwrap();
+		for (_id, player) in players.iter_mut() {
+			let cur_inv = player.get_inv();
+			if cur_inv < 0.0 {
+				// player has negative inventory and so will buy at fund_val
+				player.update_bal(cur_inv * fund_val);
+				player.update_inv(-cur_inv);
+			} else if cur_inv > 0.0 {
+				// player has positive inventory and so will sell at fund_val
+				player.update_bal(-cur_inv * fund_val);
+				player.update_inv(-cur_inv); 
+			} else {
+
+			}
+    		log_player_data!(player.log_to_csv(UpdateReason::Liquify));
+		}
+		
 	}
 }
 

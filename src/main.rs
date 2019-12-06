@@ -2,7 +2,7 @@ extern crate flow_rs;
 extern crate tokio;
 
 use flow_rs::exchange::MarketType;
-use flow_rs::simulation::simulation_config::Constants;
+use flow_rs::simulation::simulation_config::{Constants, DistReason};
 use flow_rs::simulation::simulation_history::UpdateReason;
 use flow_rs::controller::Controller;
 use flow_rs::simulation::simulation::{Simulation};
@@ -118,8 +118,15 @@ fn main() {
 
 	println!("{:?}", simulation.house.gas_fees);
 
-	// Log the intial state of the players
+	// Log the final state of the players
 	simulation.house.log_all_players(UpdateReason::Final);
+
+	let (mean_bids, _dev_bids) = simulation.dists.read_dist_params(DistReason::BidsCenter);
+	let (mean_asks, _dev_asks) = simulation.dists.read_dist_params(DistReason::AsksCenter);
+	let fund_val = (mean_bids + mean_asks) / 2.0;
+	simulation.house.liquidate(fund_val);
+
+	
 
 	let s = format!("Experiment ending at: {:?}", get_time());
 	log_order_book!(s);
