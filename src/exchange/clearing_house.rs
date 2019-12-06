@@ -407,10 +407,41 @@ impl ClearingHouse {
 
 	pub fn apply_gas_fees(&self, to_change: Vec<(String, f64)>, total: f64) {
 		// Add the gas fees for this batch
-		self.gas_fees.lock().expect("apply_gas_fees").push(total);
+		{
+			self.gas_fees.lock().expect("apply_gas_fees").push(total);
+		}
+
+		let mut players = self.players.lock().unwrap();
 		for c in to_change {
 			// Search for c.0 = trader_id, subtract c.1 = gas fee
-			self.update_player_bal(c.0, -c.1);
+			match players.get_mut(&c.0) {
+				Some(player) => { 
+					let _bef = player.get_bal();
+					player.update_bal(-c.1);
+					// println!("{}, gas:{} before: {}, after: {}\n", c.0, c.1, _bef, player.get_bal());
+					log_player_data!(format!("{}gas,", player.log_to_csv()));
+				}
+				None => {},
+			}
+		}
+	}
+
+
+	// Mulitplies all maker's current inv by the tax and subtrats that amount from their player bal
+	pub fn tax_makers(&self, tax: f64) {
+		let ids = self.get_filtered_ids(TraderT::Maker);
+		let mut players = self.players.lock().unwrap();
+		for id in ids {
+			match players.get_mut(&id) {
+				Some(player) => { 
+					let _bef = player.get_bal();
+					let tax_amt = (player.get_inv() * tax).abs();
+					player.update_bal(-tax_amt);
+					// println!("{} tax:{}, before: {}, after: {}\n", id, tax_amt, _bef, player.get_bal());
+					log_player_data!(format!("{}tax,", player.log_to_csv()));
+				}
+				None => {},
+			}
 		}
 	}
 }

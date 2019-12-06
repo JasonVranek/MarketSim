@@ -272,6 +272,10 @@ impl Simulation {
 				}
 			}
 
+			// Tax the makers holding inventory
+			house.tax_makers(consts.maker_inv_tax);
+
+
 			// Sleep for miner frame delay to simulate multiple miners
 			let sleep_time = dists.sample_dist(DistReason::MinerFrameForm).expect("Couldn't get miner frame form delay").abs();	
 			let sleep_time = time::Duration::from_millis(sleep_time as u64);
