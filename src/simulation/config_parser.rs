@@ -1,8 +1,6 @@
 use crate::simulation::simulation_config::{Distributions, Constants};
 use crate::simulation::simulation_config::{DistType, DistReason};
 
-
-use std::io;
 use std::error::Error;
 use serde::Deserialize;
 use csv;
@@ -16,6 +14,7 @@ struct TempDist{
 	dist_type: DistType,
 }
 
+
 impl TempDist {
 	pub fn unpack(&mut self) -> (DistReason, f64, f64, f64, DistType){
 		(self.reason, self.v1, self.v2, self.scalar, self.dist_type)
@@ -23,9 +22,16 @@ impl TempDist {
 }
 
 
-pub fn parse_config_csv() -> Result<Distributions, Box<dyn Error>> {
+pub fn parse_consts_config_csv(path: String) -> Result<Constants, Box<dyn Error>> {
+    let mut rdr = csv::Reader::from_path(path)?;
+    println!("Reading in config file...");
+    let consts: Constants = rdr.deserialize().next().expect("unwrap iter item").expect("unwrap line");
+    return Ok(consts);
+}
+
+pub fn parse_dist_config_csv(path: String) -> Result<Distributions, Box<dyn Error>> {
     let mut lines: Vec<(DistReason, f64, f64, f64, DistType)> = Vec::new();
-    let mut rdr = csv::Reader::from_reader(io::stdin());
+    let mut rdr = csv::Reader::from_path(path)?;
     println!("Reading in config file...");
     for result in rdr.deserialize() {
         // Notice that we need to provide a type hint for automatic

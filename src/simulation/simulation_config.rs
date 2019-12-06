@@ -5,7 +5,7 @@ use crate::exchange::MarketType;
 use rand::thread_rng;
 use rand::distributions::{Distribution};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, Deserialize)]
 pub struct Constants {
 	pub batch_interval: u64,
 	pub num_investors: u64,
@@ -16,7 +16,7 @@ pub struct Constants {
 	pub front_run_perc: f64,
 	pub flow_order_offset: f64,
 	pub maker_prop_delay: u64,
-	pub tick_size: f64,
+	pub maker_base_spread: f64,
 	pub maker_enter_prob: f64,
 	pub max_held_inventory: f64,
 	pub maker_inv_tax: f64,
@@ -36,7 +36,7 @@ impl Constants {
 			front_run_perc: f_r,
 			flow_order_offset: f_o_o,
 			maker_prop_delay: m_p_d,
-			tick_size: t_s,
+			maker_base_spread: t_s,
 			maker_enter_prob: mep,
 			max_held_inventory: mhi,
 			maker_inv_tax: mit,

@@ -70,7 +70,7 @@ impl Maker {
 		match self.maker_type {
 			MakerT::Aggressive => {
 			// Aggressive players will place new gas price > mean
-				mean_gas + Distributions::sample_uniform(0.01, consts.tick_size, None)
+				mean_gas + Distributions::sample_uniform(0.01, consts.maker_base_spread, None)
 			},
 			MakerT::RiskAverse => {
 			// RiskAverse players will place new gas price = mean
@@ -106,21 +106,21 @@ impl Maker {
 	// Calculates a price offset based on the makers type
 	// Given a price calculates the bid ask prices using maker type to determine spread
 	// returns tuple (bid_price, ask_price, bid_inv, ask_inv)
-	pub fn calc_price_inv(&self, price: Option<f64>, dists: &Distributions, consts: &Constants, _ask_vol: f64, _bid_vol: f64) -> Option<(f64, f64, f64, f64)> {
+	pub fn calc_price_inv(&self, price: Option<f64>, _dists: &Distributions, consts: &Constants, _ask_vol: f64, _bid_vol: f64) -> Option<(f64, f64, f64, f64)> {
 		match price {
 			// inf_fv = the inferred fundamental value
 			Some(inf_fv) => {
 				let spread;
 				match self.maker_type {
 					MakerT::Aggressive => {
-						spread = consts.tick_size;
+						spread = consts.maker_base_spread;
 					},
 					MakerT::RiskAverse => {
 						// Slightly bigger spread
-						spread = 2.0 * consts.tick_size;
+						spread = 2.0 * consts.maker_base_spread;
 					},
 					MakerT::Random => {
-						spread = Distributions::sample_normal(0.1 * consts.tick_size, consts.tick_size, None).abs();
+						spread = Distributions::sample_normal(0.1 * consts.maker_base_spread, consts.maker_base_spread, None).abs();
 					},
 				}
 

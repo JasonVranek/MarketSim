@@ -34,6 +34,22 @@ fn main() {
 		}
 	};
 
+	let dists_name = match args.next() {
+		Some(arg) => arg,
+		None => {
+			println!("Supply distributions csv file!");
+			std::process::exit(1);
+		}
+	};
+
+	let consts_name = match args.next() {
+		Some(arg) => arg,
+		None => {
+			println!("Supply consts csv file!");
+			std::process::exit(1);
+		}
+	};
+
 	// Initialize the logger
 	let _logger_handle = setup_logging(&filename);
 
@@ -43,28 +59,14 @@ fn main() {
 	// Create a vector to hold the handles to the threads
 	let mut thread_handles = Vec::new();
 
+	// Read the distribution parameters from the supplied csv file (arg2)
+	let distributions = parse_dist_config_csv(format!("configs/{}", dists_name)).expect("Couldn't parse dists config");
 
-	let distributions = parse_config_csv().expect("Couldn't parse config");
-
-	let consts = Constants {
-			batch_interval: 500,
-			num_investors: 10,
-			num_makers: 5,
-			block_size: 1000,
-			num_blocks: 10,
-			market_type: MarketType::KLF,
-			front_run_perc: 1.0,
-			flow_order_offset: 5.0,
-			maker_prop_delay: 200,	// 200 ms delay after block for makers to act
-			tick_size: 1.0,
-			maker_enter_prob: 0.25,
-			max_held_inventory: 1000.0,
-			maker_inv_tax: 0.01,
-		};
-
+	// Read the constant parameters from the supplied csv file (arg3)
+	let consts = parse_consts_config_csv(format!("configs/{}", consts_name)).expect("Couldn't parse consts config");
 	
+	// Write the headers to all of the log files
 	setup_log_headers(&consts);    
-
 
 	// Initial state of the sim
 	let (simulation, miner) = Simulation::init_simulation(distributions, consts.clone());
@@ -107,10 +109,12 @@ fn main() {
 	
 	controller.start_task(miner_task);
 
+	// Wait for investor task to finish
 	for h in thread_handles {
 		h.join().unwrap();
 	}
 
+	// End the tasks
 	controller.shutdown();
 
 
@@ -124,6 +128,7 @@ fn main() {
 	let (mean_bids, _dev_bids) = simulation.dists.read_dist_params(DistReason::BidsCenter);
 	let (mean_asks, _dev_asks) = simulation.dists.read_dist_params(DistReason::AsksCenter);
 	let fund_val = (mean_bids + mean_asks) / 2.0;
+	println!("fund_val: {}", fund_val);
 	simulation.house.liquidate(fund_val);
 
 	
