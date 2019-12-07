@@ -23,7 +23,8 @@ use log::{log, Level};
 /// ClearingHouse is a HashMap indexed by each player's trader_id
 pub struct ClearingHouse {
 	pub players: Mutex<HashMap<String, Box<dyn Player + Send>>>,
-	pub gas_fees: Mutex<Vec<f64>>
+	pub gas_fees: Mutex<Vec<f64>>,
+	pub total_tax: Mutex<f64>,
 }
 
 
@@ -34,6 +35,7 @@ impl ClearingHouse {
 		ClearingHouse {
 			players: Mutex::new(HashMap::new()),
 			gas_fees: Mutex::new(Vec::<f64>::new()),	
+			total_tax: Mutex::new(0.0),
 		}
 	}
 
@@ -432,8 +434,13 @@ impl ClearingHouse {
 		}
 	}
 
+	pub fn add_tax(&self, tax_amt: f64) {
+		let mut total = self.total_tax.lock().unwrap();
+		*total += tax_amt;
+	}
 
-	// Mulitplies all maker's current inv by the tax and subtrats that amount from their player bal
+
+	// Mulitplies all maker's current inv by the tax and subtracts that amount from their player bal
 	pub fn tax_makers(&self, tax: f64) {
 		let ids = self.get_filtered_ids(TraderT::Maker);
 		let mut players = self.players.lock().unwrap();
@@ -443,6 +450,7 @@ impl ClearingHouse {
 					let _bef = player.get_bal();
 					let tax_amt = (player.get_inv() * tax).abs();
 					player.update_bal(-tax_amt);
+					self.add_tax(tax_amt);
 					// println!("{} tax:{}, before: {}, after: {}\n", id, tax_amt, _bef, player.get_bal());
 					log_player_data!(player.log_to_csv(UpdateReason::Tax));
 				}

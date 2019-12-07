@@ -5,7 +5,7 @@ use crate::exchange::clearing_house::ClearingHouse;
 use crate::order::order::{Order, TradeType, ExchangeType, OrderType};
 use crate::order::order_book::Book;
 use crate::blockchain::mem_pool::MemPool;
-use crate::players::TraderT;
+use crate::players::{TraderT};
 use crate::players::miner::Miner;
 use crate::players::investor::Investor;
 use crate::players::maker::Maker;
@@ -390,19 +390,19 @@ impl Simulation {
 
 	// Calculates costs
 	pub fn calc_performance_results(&self, fund_val: f64) {
-		self.calc_price_volatility(fund_val);
+		self.calc_price_volatility();
+		self.calc_rmsd(fund_val);
 		self.calc_social_welfare();
-		self.calc_total_proft();
-		self.calc_rmsd();
+		self.calc_total_profit();
+		
 	}
 
 	// standard deviation of transaction price differences
-	pub fn calc_price_volatility(&self, fund_val: f64) {
+	pub fn calc_rmsd(&self, fund_val: f64) {
 		// Results saved in history.clearings
 		let mut num = 0.0;
 		let mut sum_of_diffs_squared = 0.0;
 		let clearings = self.history.clearings.lock().unwrap();
-		log_results!(format!("\nTransaction Prices,"));
 		for (trade_results, _timestamp) in clearings.iter() {
 			if trade_results.uniform_price.is_none() {
 				// CDA look at price of each transaction
@@ -410,7 +410,6 @@ impl Simulation {
 					Some(player_updates) => {
 						for p_u in player_updates {
 							let p = p_u.price;
-							log_results!(format!("{},", p));
 							sum_of_diffs_squared += (p - fund_val).powi(2);
 							num += 1.0;
 						}
@@ -421,8 +420,74 @@ impl Simulation {
 			} else {
 				// FBA or KLF just need to look at uniform clearing price
 				let p = trade_results.uniform_price.unwrap();
-				log_results!(format!("{},", p));
 				sum_of_diffs_squared += (p - fund_val).powi(2);
+				num += 1.0;
+			}
+		}
+
+		assert!(num > 0.0);
+		let mean = sum_of_diffs_squared / num;
+		let rsmd = mean.sqrt();
+
+		log_results!(format!("\nrsmd,{}", rsmd));
+	}
+
+	// standard deviation of transaction price differences
+	pub fn calc_price_volatility(&self) {
+		// Results saved in history.clearings
+		let mut num = 0.0;
+		let mut mean = 0.0;
+		let mut sum_of_diffs_squared = 0.0;
+		let clearings = self.history.clearings.lock().unwrap();
+
+		// calc avg
+		log_results!(format!("\nTransaction Prices,"));
+		for (trade_results, _timestamp) in clearings.iter() {
+			if trade_results.uniform_price.is_none() {
+				// CDA look at price of each transaction
+				match &trade_results.cross_results {
+					Some(player_updates) => {
+						for p_u in player_updates {
+							println!("{:?}", p_u);
+							let p = p_u.price;
+							log_results!(format!("{},", p));
+							mean += p;
+							num += 1.0;
+						}
+					},
+					None => {},
+				}
+				
+			} else {
+				// FBA or KLF just need to look at uniform clearing price
+				let p = trade_results.uniform_price.unwrap();
+				log_results!(format!("{},", p));
+				mean += p;
+				num += 1.0;
+			}
+		}
+		assert!(num > 0.0);	
+		mean = mean / num;
+		
+		//calc std dev
+		for (trade_results, _timestamp) in clearings.iter() {
+			if trade_results.uniform_price.is_none() {
+				// CDA look at price of each transaction
+				match &trade_results.cross_results {
+					Some(player_updates) => {
+						for p_u in player_updates {
+							let p = p_u.price;
+							sum_of_diffs_squared += (p - mean).powi(2);
+							num += 1.0;
+						}
+					},
+					None => {},
+				}
+				
+			} else {
+				// FBA or KLF just need to look at uniform clearing price
+				let p = trade_results.uniform_price.unwrap();
+				sum_of_diffs_squared += (p - mean).powi(2);
 				num += 1.0;
 			}
 		}
@@ -436,23 +501,52 @@ impl Simulation {
 
 	}
 
+
 	pub fn calc_social_welfare(&self) {
 		// cummulative gas fees
+		let avg_gas: f64;
+		let mut total_gas = 0.0;
+		{
+			let all_gas = self.house.gas_fees.lock().unwrap();
+			let mut num = 0.0;
+			// Average all gas, ignore 0.0 entries where no orders were entered to block
+			for g in all_gas.iter() {
+				if g == &0.0 {continue;}
+				total_gas += g;
+				num += 1.0;
+			}
+			assert!(num > 0.0);
+			avg_gas = total_gas / num;
+		}
+		log_results!(format!("\naverage gas,total gas,\n{},{},", avg_gas, total_gas));
 
-		// cummulative tax on inventory
+		// cummulative tax on maker inventory
+		let total_tax = self.house.total_tax.lock().unwrap().clone();
+		log_results!(format!("\ntotal tax,\n{}", total_tax));
 
-		// maker profit
+		// maker profit = initial bal, initial inv, final bal, final inv 
 
 		// miner profit
 	}
 
-	pub fn calc_total_proft(&self) {
-		// 
+	pub fn calc_total_profit(&self) {
+		// Get final states
+		let players = self.house.players.lock().unwrap();
+		for (_k, p) in players.iter() {
+			match p.get_player_type() {
+				TraderT::Maker => {
+
+				},
+				TraderT::Investor => {
+
+				},
+				TraderT::Miner => {
+
+				},
+			}
+		}
 	}
 
-	pub fn calc_rmsd(&self) {
-
-	}
 }
 
 
