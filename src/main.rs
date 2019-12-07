@@ -139,7 +139,10 @@ fn main() {
 	log_order_book!(s);
 	log_mempool_data!(s);
 	log_player_data!(s);
-	log_results!(s);
+
+	simulation.calc_performance_results(fund_val);
+
+
 
 }
 

@@ -389,11 +389,50 @@ impl Simulation {
 	}
 
 	// Calculates costs
-	pub fn calc_performance_results(&self) {
-
+	pub fn calc_performance_results(&self, fund_val: f64) {
+		self.calc_price_volatility(fund_val);
+		self.calc_social_welfare();
+		self.calc_total_proft();
+		self.calc_rmsd();
 	}
 
-	pub fn calc_price_volatility(&self) {
+	// standard deviation of transaction price differences
+	pub fn calc_price_volatility(&self, fund_val: f64) {
+		// Results saved in history.clearings
+		let mut num = 0.0;
+		let mut sum_of_diffs_squared = 0.0;
+		let clearings = self.history.clearings.lock().unwrap();
+		log_results!(format!("\nTransaction Prices,"));
+		for (trade_results, _timestamp) in clearings.iter() {
+			if trade_results.uniform_price.is_none() {
+				// CDA look at price of each transaction
+				match &trade_results.cross_results {
+					Some(player_updates) => {
+						for p_u in player_updates {
+							let p = p_u.price;
+							log_results!(format!("{},", p));
+							sum_of_diffs_squared += (p - fund_val).powi(2);
+							num += 1.0;
+						}
+					},
+					None => {},
+				}
+				
+			} else {
+				// FBA or KLF just need to look at uniform clearing price
+				let p = trade_results.uniform_price.unwrap();
+				log_results!(format!("{},", p));
+				sum_of_diffs_squared += (p - fund_val).powi(2);
+				num += 1.0;
+			}
+		}
+
+		assert!(num > 0.0);
+		let mean = sum_of_diffs_squared / num;
+		let volatility = mean.sqrt();
+
+		log_results!(format!("\nPrice Volatility,{}", volatility));
+
 
 	}
 
