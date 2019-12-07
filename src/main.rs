@@ -10,7 +10,7 @@ use flow_rs::simulation::config_parser::*;
 
 
 use flow_rs::utility::{setup_logging, get_time};
-use flow_rs::{log_order_book, log_player_data, log_mempool_data};
+use flow_rs::{log_order_book, log_player_data, log_mempool_data, log_results};
 
 
 #[macro_use]
@@ -64,6 +64,8 @@ fn main() {
 
 	// Read the constant parameters from the supplied csv file (arg3)
 	let consts = parse_consts_config_csv(format!("configs/{}", consts_name)).expect("Couldn't parse consts config");
+
+	log_results!(consts.log());
 	
 	// Write the headers to all of the log files
 	setup_log_headers(&consts);    
@@ -137,6 +139,7 @@ fn main() {
 	log_order_book!(s);
 	log_mempool_data!(s);
 	log_player_data!(s);
+	log_results!(s);
 
 }
 

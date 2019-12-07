@@ -387,7 +387,57 @@ impl Simulation {
 			}
 		}, consts.batch_interval + consts.maker_prop_delay)
 	}
+
+	// Calculates costs
+	pub fn calc_performance_results(&self) {
+
+	}
+
+	pub fn calc_price_volatility(&self) {
+
+	}
+
+	pub fn calc_social_welfare(&self) {
+		// cummulative gas fees
+
+		// cummulative tax on inventory
+
+		// maker profit
+
+		// miner profit
+	}
+
+	pub fn calc_total_proft(&self) {
+		// 
+	}
+
+	pub fn calc_rmsd(&self) {
+
+	}
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

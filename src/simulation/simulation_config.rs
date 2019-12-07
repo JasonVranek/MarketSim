@@ -42,6 +42,25 @@ impl Constants {
 			maker_inv_tax: mit,
 		}
 	}
+
+	pub fn log(&self) -> String {
+		let h = format!("\nbatch_interval,num_investors,num_makers,block_size,num_blocks,market_type,front_run_perc,flow_order_offset,maker_prop_delay,maker_base_spread,maker_enter_prob,max_held_inventory,maker_inv_tax,");
+		let d = format!("{},{},{},{},{},{:?},{},{},{},{},{},{},{},",
+			self.batch_interval,
+			self.num_investors,
+			self.num_makers,
+			self.block_size,
+			self.num_blocks,
+			self.market_type,
+			self.front_run_perc,
+			self.flow_order_offset,
+			self.maker_prop_delay,
+			self.maker_base_spread,
+			self.maker_enter_prob,
+			self.max_held_inventory,
+			self.maker_inv_tax);
+		format!("{}\n{}", h, d)
+	}
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Deserialize)]

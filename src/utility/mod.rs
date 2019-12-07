@@ -7,11 +7,13 @@ use rand::{Rng, thread_rng};
 use rand::distributions::Alphanumeric;
 use std::iter;
 
-use log::{LevelFilter, log, Level};
+use log::{LevelFilter};
 use log4rs::append::console::ConsoleAppender;
 use log4rs::append::file::FileAppender;
 use log4rs::encode::pattern::PatternEncoder;
 use log4rs::config::{Appender, Config, Root, Logger};
+
+use log::{Level};
 
 
 
@@ -33,6 +35,13 @@ macro_rules! log_player_data {
 macro_rules! log_mempool_data {
     ($message:expr) => {
         log!(target: "app::mempool_data", Level::Warn, "{}", $message);
+    }   
+}
+
+#[macro_export]
+macro_rules! log_results {
+    ($message:expr) => {
+        log!(target: "app::results", Level::Warn, "{}", $message);
     }   
 }
 
@@ -107,12 +116,17 @@ pub fn setup_logging(file_name: &str) -> log4rs::Handle {
         .encoder(Box::new(PatternEncoder::new("{m}\n")))
         .build(format!("log/mempool_data_{}.csv", file_name)).expect("Couldn't set up appender");
 
+    let results_file = FileAppender::builder()
+        .encoder(Box::new(PatternEncoder::new("{m}\n")))
+        .build(format!("log/results_{}.csv", file_name)).expect("Couldn't set up appender");
+
     // Use builder instead of yaml file
     let config = Config::builder()
         .appender(Appender::builder().build("stdout", Box::new(stdout)))
         .appender(Appender::builder().build("order_books", Box::new(order_books_file)))
         .appender(Appender::builder().build("player_data", Box::new(player_data_file)))
         .appender(Appender::builder().build("mempool_data", Box::new(mempool_data_file)))
+        .appender(Appender::builder().build("results", Box::new(results_file)))
         // the logger for the order book data. use log!(target: "app::order_books", Level::Warn, "message here");
         .logger(Logger::builder()       
             .appender("order_books")
@@ -128,6 +142,10 @@ pub fn setup_logging(file_name: &str) -> log4rs::Handle {
             .appender("mempool_data")
             .additive(false)
             .build("app::mempool_data", LevelFilter::Info))
+        .logger(Logger::builder()
+            .appender("results")
+            .additive(false)
+            .build("app::results", LevelFilter::Info))
         .build(Root::builder().appender("stdout").build(LevelFilter::Info))
         .expect("Couldn't set up builder");
 

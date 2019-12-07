@@ -5,6 +5,8 @@ use std::error::Error;
 use serde::Deserialize;
 use csv;
 
+use log::Level;
+
 #[derive(Debug, Deserialize)]
 struct TempDist{
 	reason: DistReason,
@@ -33,11 +35,19 @@ pub fn parse_dist_config_csv(path: String) -> Result<Distributions, Box<dyn Erro
     let mut lines: Vec<(DistReason, f64, f64, f64, DistType)> = Vec::new();
     let mut rdr = csv::Reader::from_path(path)?;
     println!("Reading in config file...");
+    log_results!("reason,v1,v2,scalar,dist_type,");
     for result in rdr.deserialize() {
         // Notice that we need to provide a type hint for automatic
         // deserialization.
         let mut csv_line: TempDist = result?;
         println!("{:?}", csv_line);
+        log_results!(format!("{:?},{},{},{},{:?},", 
+        	csv_line.reason,
+        	csv_line.v1,
+        	csv_line.v2,
+        	csv_line.scalar,
+        	csv_line.dist_type));
+
         lines.push(csv_line.unpack());
 
     }
