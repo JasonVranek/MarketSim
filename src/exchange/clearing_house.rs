@@ -179,6 +179,16 @@ impl ClearingHouse {
 		}
 	}	
 
+	pub fn get_bal_inv(&self, id: String) -> Option<(f64, f64)> {
+		let mut players = self.players.lock().unwrap();
+		match players.get(&id) {
+			Some(player) => { 
+				Some((player.get_bal(), player.get_inv()))
+			}
+			None => None,
+		}
+	}
+
 	/// Gets the TradeResults from an auction and updates each player
 	pub fn update_house(&self, results: TradeResults) {
 		match results.auction_type {

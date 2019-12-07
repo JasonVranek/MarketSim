@@ -1,4 +1,3 @@
-use std::sync::Mutex;
 use crate::simulation::simulation_config::{Constants, Distributions, DistReason};
 use crate::controller::Task;
 use crate::exchange::clearing_house::ClearingHouse;
@@ -14,6 +13,8 @@ use crate::blockchain::order_processor::OrderProcessor;
 use crate::utility::{gen_trader_id, get_time};
 use crate::simulation::simulation_history::History;
 
+use std::collections::HashMap;
+use std::sync::Mutex;
 use std::sync::Arc;
 use std::{time, thread};
 use std::thread::JoinHandle;
@@ -389,11 +390,12 @@ impl Simulation {
 	}
 
 	// Calculates costs
-	pub fn calc_performance_results(&self, fund_val: f64) {
+	pub fn calc_performance_results(&self, fund_val: f64, init_player_s: HashMap<String, (f64, f64)>) {
 		self.calc_price_volatility();
 		self.calc_rmsd(fund_val);
-		self.calc_social_welfare();
-		self.calc_total_profit();
+		let (maker_profit, investor_profit, miner_profit) = self.calc_total_profit(init_player_s);
+		self.calc_social_welfare(maker_profit, investor_profit, miner_profit);
+		
 		
 	}
 
@@ -502,7 +504,7 @@ impl Simulation {
 	}
 
 
-	pub fn calc_social_welfare(&self) {
+	pub fn calc_social_welfare(&self, maker_profit: f64, _investor_profit: f64, miner_profit: f64) {
 		// cummulative gas fees
 		let avg_gas: f64;
 		let mut total_gas = 0.0;
@@ -518,33 +520,58 @@ impl Simulation {
 			assert!(num > 0.0);
 			avg_gas = total_gas / num;
 		}
-		log_results!(format!("\naverage gas,total gas,\n{},{},", avg_gas, total_gas));
 
 		// cummulative tax on maker inventory
 		let total_tax = self.house.total_tax.lock().unwrap().clone();
-		log_results!(format!("\ntotal tax,\n{}", total_tax));
 
-		// maker profit = initial bal, initial inv, final bal, final inv 
+		let dead_weight = total_tax + total_gas + maker_profit + miner_profit;
 
-		// miner profit
+		log_results!(format!("\naverage gas,total gas,total tax,dead weight loss,\n{},{},{},{},", avg_gas, total_gas, total_tax, dead_weight));
+
 	}
 
-	pub fn calc_total_profit(&self) {
+	pub fn calc_total_profit(&self, init_player_s: HashMap<String, (f64, f64)>) -> (f64, f64, f64) {
 		// Get final states
 		let players = self.house.players.lock().unwrap();
-		for (_k, p) in players.iter() {
+		let mut investor_profit = 0.0;
+		let mut maker_profit = 0.0;
+		let mut miner_profit = 0.0;
+		for (k, p) in players.iter() {
 			match p.get_player_type() {
 				TraderT::Maker => {
-
+					// get initial bal and inv
+					let (init_bal, init_inv) = init_player_s.get(&k.clone()).expect("calc_total_profit");
+					let cur_bal = p.get_bal();
+					let cur_inv = p.get_inv();
+					let profit = cur_bal - init_bal;
+					log_results!(format!("maker init bal,init inv,cur bal,cur inv,profit,\n{},{},{},{},{},", init_bal, init_inv, cur_bal, cur_inv, profit));
+					maker_profit += profit;
 				},
 				TraderT::Investor => {
-
+					// get initial bal and inv
+					let (init_bal, init_inv) = init_player_s.get(&k.clone()).expect("calc_total_profit");
+					// search current bal and inv
+					let cur_bal = p.get_bal();
+					let cur_inv = p.get_inv();
+					let profit = cur_bal - init_bal;
+					log_results!(format!("maker init bal,init inv,cur bal,cur inv,profit,\n{},{},{},{},{},", init_bal, init_inv, cur_bal, cur_inv, profit));
+					investor_profit += profit;
 				},
 				TraderT::Miner => {
-
+					// get initial bal and inv
+					let (init_bal, init_inv) = init_player_s.get(&k.clone()).expect("calc_total_profit");
+					// search current bal and inv
+					let cur_bal = p.get_bal();
+					let cur_inv = p.get_inv();
+					let profit = cur_bal - init_bal;
+					log_results!(format!("maker init bal,init inv,cur bal,cur inv,profit,\n{},{},{},{},{},", init_bal, init_inv, cur_bal, cur_inv, profit));
+					miner_profit += profit;
 				},
 			}
 		}
+
+		log_results!(format!("\ntotal maker profits,total investor profits,total miner profits,\n{},{},{},\n", maker_profit, investor_profit, miner_profit));
+		(maker_profit, investor_profit, miner_profit)
 	}
 
 }

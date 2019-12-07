@@ -17,6 +17,7 @@ use flow_rs::{log_order_book, log_player_data, log_mempool_data, log_results};
 extern crate log;
 extern crate log4rs;
 
+use std::collections::HashMap;
 use log::{log, Level};
 use std::sync::Arc;
 use std::env;
@@ -73,9 +74,15 @@ fn main() {
 	// Initial state of the sim
 	let (simulation, miner) = Simulation::init_simulation(distributions, consts.clone());
 
-	// Log the intial state of the players
+	// Log and save the intial state of the players
 	simulation.house.log_all_players(UpdateReason::Initial);
-
+	// Save the initial balance and inventory of each player
+	let mut initial_player_state = HashMap::<String, (f64, f64)>::new(); 
+	{
+		for (id, player) in simulation.house.players.lock().unwrap().iter() {
+			initial_player_state.insert(id.clone(), (player.get_bal(), player.get_inv()));
+		}
+	}
 	
 	// Initialize an investor thread to repeat at intervals based on supplied distributions
 	let investor_task = Simulation::investor_task(simulation.dists.clone(), 
@@ -140,7 +147,7 @@ fn main() {
 	log_mempool_data!(s);
 	log_player_data!(s);
 
-	simulation.calc_performance_results(fund_val);
+	simulation.calc_performance_results(fund_val, initial_player_state);
 
 
 
