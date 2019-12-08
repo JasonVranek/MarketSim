@@ -7,7 +7,7 @@ use crate::blockchain::mem_pool::MemPool;
 use crate::players::{TraderT};
 use crate::players::miner::Miner;
 use crate::players::investor::Investor;
-use crate::players::maker::Maker;
+use crate::players::maker::{Maker, MakerT};
 use crate::exchange::MarketType;
 use crate::blockchain::order_processor::OrderProcessor;
 use crate::utility::{gen_trader_id, get_time};
@@ -396,10 +396,15 @@ impl Simulation {
 		let (maker_profit, investor_profit, miner_profit) = self.calc_total_profit(init_player_s);
 		let (total_gas, avg_gas, total_tax, dead_weight) = self.calc_social_welfare(maker_profit, investor_profit, miner_profit);
 		
-		log_results!(format!("\n\nSimulation Results,\nfund val,total gas,avg gas,total tax,maker profit,investor profit,miner profit,dead weight,volatility,rmsd,\n{},{},{},{},{},{},{},{},{},{},", 
-			fund_val, total_gas, avg_gas, total_tax, maker_profit, investor_profit, miner_profit, dead_weight, volatility, rmsd));
+		let mkr_profits = self.house.maker_profits.lock().unwrap();
+		let agg_profit = mkr_profits[MakerT::Aggressive as usize];
+		let riskav_profit = mkr_profits[MakerT::RiskAverse as usize];
+		let rand_profit = mkr_profits[MakerT::Random as usize];
+
+		log_results!(format!("\n\nSimulation Results,\nfund val,total gas,avg gas,total tax,maker profit,investor profit,miner profit,dead weight,volatility,rmsd,aggressive mkr prof,riskaverse mkr prof,random mkr profit,\n{},{},{},{},{},{},{},{},{},{},{},{},{},", 
+			fund_val, total_gas, avg_gas, total_tax, maker_profit, investor_profit, miner_profit, dead_weight, volatility, rmsd, agg_profit, riskav_profit, rand_profit));
 		
-		format!("{},{},{},{},{},{},{},{},{},{},", fund_val, total_gas, avg_gas, total_tax, maker_profit, investor_profit, miner_profit, dead_weight, volatility, rmsd)
+		format!("{},{},{},{},{},{},{},{},{},{},{},{},{},", fund_val, total_gas, avg_gas, total_tax, maker_profit, investor_profit, miner_profit, dead_weight, volatility, rmsd, agg_profit, riskav_profit, rand_profit)
 	}
 
 	// standard deviation of transaction price differences
@@ -579,7 +584,6 @@ impl Simulation {
 	}
 
 }
-
 
 
 

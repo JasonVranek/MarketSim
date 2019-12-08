@@ -5,7 +5,7 @@ use crate::exchange::MarketType;
 use crate::order::order::{Order};
 use crate::players::{Player, TraderT};
 use crate::players::investor::Investor;
-use crate::players::maker::{Maker};
+use crate::players::maker::{Maker, MakerT};
 use crate::players::miner::Miner;
 use crate::log_player_data;
 
@@ -25,6 +25,7 @@ pub struct ClearingHouse {
 	pub players: Mutex<HashMap<String, Box<dyn Player + Send>>>,
 	pub gas_fees: Mutex<Vec<f64>>,
 	pub total_tax: Mutex<f64>,
+	pub maker_profits: Mutex<Vec<f64>>,
 }
 
 
@@ -36,6 +37,7 @@ impl ClearingHouse {
 			players: Mutex::new(HashMap::new()),
 			gas_fees: Mutex::new(Vec::<f64>::new()),	
 			total_tax: Mutex::new(0.0),
+			maker_profits: Mutex::new(vec![0.0, 0.0, 0.0]),
 		}
 	}
 
@@ -173,6 +175,26 @@ impl ClearingHouse {
 				player.update_inv(inv_to_add);
 				player.update_bal(bal_to_add);
 				log_player_data!(player.log_to_csv(reason));
+
+				// Track the updates to specific maker types
+				if player.get_player_type() == TraderT::Maker {
+					if let Some(maker) = player.as_any().downcast_ref::<Maker>() {
+						match maker.maker_type {
+							MakerT::Aggressive => {
+								let mut maker_profits = self.maker_profits.lock().unwrap();
+								maker_profits[MakerT::Aggressive as usize] += bal_to_add;
+							},
+							MakerT::RiskAverse => {
+								let mut maker_profits = self.maker_profits.lock().unwrap();
+								maker_profits[MakerT::RiskAverse as usize] += bal_to_add;
+							},
+							MakerT::Random => {
+								let mut maker_profits = self.maker_profits.lock().unwrap();
+								maker_profits[MakerT::Random as usize] += bal_to_add;
+							},
+						}
+					}
+				}
 				Some((player.get_bal(), player.get_inv()))
 			}
 			None => None,

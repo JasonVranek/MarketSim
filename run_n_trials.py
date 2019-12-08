@@ -20,7 +20,7 @@ def main():
 
 
 	# write the header to the total_results.csv file
-	header = "market type,liquidated?,fund val,total gas,avg gas,total tax,maker profit,investor profit,miner profit,dead weight,volatility,rmsd,\n"
+	header = "market type,liquidated?,fund val,total gas,avg gas,total tax,maker profit,investor profit,miner profit,dead weight,volatility,rmsd,aggressive mkr prof,riskaverse mkr prof,random mkr profit,\n"
 	f = open("log/total_results.csv", "w")# write header to total_results.csv
 	f.write(header)
 	f.close()
@@ -39,7 +39,12 @@ def main():
 	
 
 	os.system("mkdir results")
-	os.system("mv log/total_results.csv results/{}_total_results.csv".format(exp_name))
+	os.system("mkdir results/{}".format(exp_name))
+	os.system("mkdir results/{}/log".format(exp_name))
+	os.system("mv log/total_results.csv results/{}/{}_total_results.csv".format(exp_name, exp_name))
+	os.system("mv log/* results/{}/log".format(exp_name))
+	os.system("cp configs/{}.csv results/{}".format(dists, exp_name))
+	os.system("cp configs/{}.csv results/{}".format(consts, exp_name))
 
 
 
