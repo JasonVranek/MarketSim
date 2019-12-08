@@ -156,7 +156,7 @@ fn main() {
 
 	log_results!(format!("Sim Results after liquidation,\n"));
 	let res = simulation.calc_performance_results(fund_val, initial_player_state);
-	log_cummulative_results!(format!("{:?},NO,{}", consts.market_type, res));
+	log_cummulative_results!(format!("{:?},YES,{}", consts.market_type, res));
 
 }
 
