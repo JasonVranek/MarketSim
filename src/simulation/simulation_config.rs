@@ -61,6 +61,7 @@ impl Constants {
 			self.maker_inv_tax);
 		format!("{}\n{}", h, d)
 	}
+
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Deserialize)]

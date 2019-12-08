@@ -138,7 +138,7 @@ fn main() {
 	let (mean_asks, _dev_asks) = simulation.dists.read_dist_params(DistReason::AsksCenter);
 	let fund_val = (mean_bids + mean_asks) / 2.0;
 	println!("fund_val: {}", fund_val);
-	simulation.house.liquidate(fund_val);
+	// simulation.house.liquidate(fund_val);
 
 	
 
@@ -147,9 +147,14 @@ fn main() {
 	log_mempool_data!(s);
 	log_player_data!(s);
 
+	log_results!(format!("Sim Results before liquidation,\n"));
+	simulation.calc_performance_results(fund_val, initial_player_state.clone());
+
+
+	simulation.house.liquidate(fund_val);
+
+	log_results!(format!("Sim Results after liquidation,\n"));
 	simulation.calc_performance_results(fund_val, initial_player_state);
-
-
 
 }
 

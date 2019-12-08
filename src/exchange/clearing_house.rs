@@ -180,7 +180,7 @@ impl ClearingHouse {
 	}	
 
 	pub fn get_bal_inv(&self, id: String) -> Option<(f64, f64)> {
-		let mut players = self.players.lock().unwrap();
+		let players = self.players.lock().unwrap();
 		match players.get(&id) {
 			Some(player) => { 
 				Some((player.get_bal(), player.get_inv()))
@@ -220,7 +220,7 @@ impl ClearingHouse {
 					}
 
 					// NOTE: in CDA, the order's volume in orderbook is implicitly modified during crossing
-					// self.update_player_order_vol(bidder_id.clone(), pu.payer_order_id, -volume).expect("Failed to update");
+					self.update_player_order_vol(bidder_id.clone(), pu.payer_order_id, -volume).expect("Failed to update");
 
 					// Update asker: +bal, -inv
 					let asker_id = pu.vol_filler_id;
@@ -232,7 +232,7 @@ impl ClearingHouse {
 					}
 
 					// NOTE: in CDA, the order's volume in orderbook is implicitly modified during crossing
-					// self.update_player_order_vol(asker_id.clone(), pu.vol_filler_order_id, -volume).expect("Failed to update");
+					self.update_player_order_vol(asker_id.clone(), pu.vol_filler_order_id, -volume).expect("Failed to update");
 				}
 			}
 		}
@@ -258,7 +258,7 @@ impl ClearingHouse {
 						panic!("failed to update {}'s balance/inventory", bidder_id);
 					}
 
-					// Subtract interest from the bidder's order
+					// Subtract interest from the bidder's order in the clearing house
 					self.update_player_order_vol(bidder_id.clone(), pu.payer_order_id, -volume).expect("Failed to update");
 
 					// Update asker: +bal, -inv

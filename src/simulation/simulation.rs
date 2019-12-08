@@ -391,16 +391,17 @@ impl Simulation {
 
 	// Calculates costs
 	pub fn calc_performance_results(&self, fund_val: f64, init_player_s: HashMap<String, (f64, f64)>) {
-		self.calc_price_volatility();
-		self.calc_rmsd(fund_val);
+		let volatility = self.calc_price_volatility();
+		let rmsd = self.calc_rmsd(fund_val);
 		let (maker_profit, investor_profit, miner_profit) = self.calc_total_profit(init_player_s);
-		self.calc_social_welfare(maker_profit, investor_profit, miner_profit);
+		let (total_gas, avg_gas, total_tax, dead_weight) = self.calc_social_welfare(maker_profit, investor_profit, miner_profit);
 		
-		
+		log_results!(format!("\n\nSimulation Results,\nfund val,total gas,avg gas,total tax,maker profit,investor profit,miner profit,dead weight,volatility,rmsd,\n{},{},{},{},{},{},{},{},{},{},", 
+			fund_val, total_gas, avg_gas, total_tax, maker_profit, investor_profit, miner_profit, dead_weight, volatility, rmsd));
 	}
 
 	// standard deviation of transaction price differences
-	pub fn calc_rmsd(&self, fund_val: f64) {
+	pub fn calc_rmsd(&self, fund_val: f64) -> f64{
 		// Results saved in history.clearings
 		let mut num = 0.0;
 		let mut sum_of_diffs_squared = 0.0;
@@ -431,11 +432,12 @@ impl Simulation {
 		let mean = sum_of_diffs_squared / num;
 		let rsmd = mean.sqrt();
 
-		log_results!(format!("\nrsmd,{}", rsmd));
+		log_results!(format!("\nrsmd,{},\n", rsmd));
+		rsmd
 	}
 
 	// standard deviation of transaction price differences
-	pub fn calc_price_volatility(&self) {
+	pub fn calc_price_volatility(&self) -> f64{
 		// Results saved in history.clearings
 		let mut num = 0.0;
 		let mut mean = 0.0;
@@ -443,7 +445,7 @@ impl Simulation {
 		let clearings = self.history.clearings.lock().unwrap();
 
 		// calc avg
-		log_results!(format!("\nTransaction Prices,"));
+		// log_results!(format!("\nTransaction Prices,"));
 		for (trade_results, _timestamp) in clearings.iter() {
 			if trade_results.uniform_price.is_none() {
 				// CDA look at price of each transaction
@@ -452,7 +454,7 @@ impl Simulation {
 						for p_u in player_updates {
 							println!("{:?}", p_u);
 							let p = p_u.price;
-							log_results!(format!("{},", p));
+							// log_results!(format!("{},", p));
 							mean += p;
 							num += 1.0;
 						}
@@ -463,7 +465,7 @@ impl Simulation {
 			} else {
 				// FBA or KLF just need to look at uniform clearing price
 				let p = trade_results.uniform_price.unwrap();
-				log_results!(format!("{},", p));
+				// log_results!(format!("{},", p));
 				mean += p;
 				num += 1.0;
 			}
@@ -498,13 +500,12 @@ impl Simulation {
 		let mean = sum_of_diffs_squared / num;
 		let volatility = mean.sqrt();
 
-		log_results!(format!("\nPrice Volatility,{}", volatility));
-
-
+		log_results!(format!("\nPrice Volatility,{},\n", volatility));
+		volatility
 	}
 
 
-	pub fn calc_social_welfare(&self, maker_profit: f64, _investor_profit: f64, miner_profit: f64) {
+	pub fn calc_social_welfare(&self, maker_profit: f64, _investor_profit: f64, miner_profit: f64) -> (f64, f64, f64, f64) {
 		// cummulative gas fees
 		let avg_gas: f64;
 		let mut total_gas = 0.0;
@@ -521,13 +522,14 @@ impl Simulation {
 			avg_gas = total_gas / num;
 		}
 
-		// cummulative tax on maker inventory
+		// cummulative tax on maker inventory (Note, this is part of miner profits, so don't double count in social welfare)
 		let total_tax = self.house.total_tax.lock().unwrap().clone();
 
-		let dead_weight = total_tax + total_gas + maker_profit + miner_profit;
+		let dead_weight = total_gas + maker_profit + miner_profit;
 
 		log_results!(format!("\naverage gas,total gas,total tax,dead weight loss,\n{},{},{},{},", avg_gas, total_gas, total_tax, dead_weight));
 
+		(total_gas, avg_gas, total_tax, dead_weight)
 	}
 
 	pub fn calc_total_profit(&self, init_player_s: HashMap<String, (f64, f64)>) -> (f64, f64, f64) {
@@ -544,7 +546,7 @@ impl Simulation {
 					let cur_bal = p.get_bal();
 					let cur_inv = p.get_inv();
 					let profit = cur_bal - init_bal;
-					log_results!(format!("maker init bal,init inv,cur bal,cur inv,profit,\n{},{},{},{},{},", init_bal, init_inv, cur_bal, cur_inv, profit));
+					// log_results!(format!("maker init bal,init inv,cur bal,cur inv,profit,\n{},{},{},{},{},", init_bal, init_inv, cur_bal, cur_inv, profit));
 					maker_profit += profit;
 				},
 				TraderT::Investor => {
@@ -554,7 +556,7 @@ impl Simulation {
 					let cur_bal = p.get_bal();
 					let cur_inv = p.get_inv();
 					let profit = cur_bal - init_bal;
-					log_results!(format!("maker init bal,init inv,cur bal,cur inv,profit,\n{},{},{},{},{},", init_bal, init_inv, cur_bal, cur_inv, profit));
+					// log_results!(format!("maker init bal,init inv,cur bal,cur inv,profit,\n{},{},{},{},{},", init_bal, init_inv, cur_bal, cur_inv, profit));
 					investor_profit += profit;
 				},
 				TraderT::Miner => {
@@ -564,7 +566,7 @@ impl Simulation {
 					let cur_bal = p.get_bal();
 					let cur_inv = p.get_inv();
 					let profit = cur_bal - init_bal;
-					log_results!(format!("maker init bal,init inv,cur bal,cur inv,profit,\n{},{},{},{},{},", init_bal, init_inv, cur_bal, cur_inv, profit));
+					// log_results!(format!("maker init bal,init inv,cur bal,cur inv,profit,\n{},{},{},{},{},", init_bal, init_inv, cur_bal, cur_inv, profit));
 					miner_profit += profit;
 				},
 			}
