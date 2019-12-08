@@ -10,7 +10,7 @@ use flow_rs::simulation::config_parser::*;
 
 
 use flow_rs::utility::{setup_logging, get_time};
-use flow_rs::{log_order_book, log_player_data, log_mempool_data, log_results};
+use flow_rs::*;//{log_order_book, log_player_data, log_mempool_data, log_results, log_cummulative_results};
 
 
 #[macro_use]
@@ -148,13 +148,15 @@ fn main() {
 	log_player_data!(s);
 
 	log_results!(format!("Sim Results before liquidation,\n"));
-	simulation.calc_performance_results(fund_val, initial_player_state.clone());
+	let res = simulation.calc_performance_results(fund_val, initial_player_state.clone());
+	log_cummulative_results!(format!("{:?},NO,{}", consts.market_type, res));
 
 
 	simulation.house.liquidate(fund_val);
 
 	log_results!(format!("Sim Results after liquidation,\n"));
-	simulation.calc_performance_results(fund_val, initial_player_state);
+	let res = simulation.calc_performance_results(fund_val, initial_player_state);
+	log_cummulative_results!(format!("{:?},NO,{}", consts.market_type, res));
 
 }
 

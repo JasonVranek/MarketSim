@@ -13,8 +13,18 @@ def main():
 
 	consts = raw_input("Enter name of <your_consts_config_name>.csv (of any market type): \n")
 
+	os.system("mkdir log")
+
 	call = "cargo run --example copy_csvs {}".format(consts)
 	os.system(call)
+
+
+	# write the header to the total_results.csv file
+	header = "market type,liquidated?,fund val,total gas,avg gas,total tax,maker profit,investor profit,miner profit,dead weight,volatility,rmsd,\n"
+	f = open("log/total_results.csv", "w")# write header to total_results.csv
+	f.write(header)
+	f.close()
+
 
 	for i in xrange(0, int(n)):
 
@@ -27,6 +37,9 @@ def main():
 		call = "cargo run {}_{}_CDA {}.csv {}_CDA.csv".format(i, exp_name, dists, consts)
 		os.system(call)
 	
+
+	os.system("mkdir results")
+	os.system("mv log/total_results.csv results/{}_total_results.csv".format(exp_name))
 
 
 

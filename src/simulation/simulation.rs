@@ -390,7 +390,7 @@ impl Simulation {
 	}
 
 	// Calculates costs
-	pub fn calc_performance_results(&self, fund_val: f64, init_player_s: HashMap<String, (f64, f64)>) {
+	pub fn calc_performance_results(&self, fund_val: f64, init_player_s: HashMap<String, (f64, f64)>) -> String {
 		let volatility = self.calc_price_volatility();
 		let rmsd = self.calc_rmsd(fund_val);
 		let (maker_profit, investor_profit, miner_profit) = self.calc_total_profit(init_player_s);
@@ -398,6 +398,8 @@ impl Simulation {
 		
 		log_results!(format!("\n\nSimulation Results,\nfund val,total gas,avg gas,total tax,maker profit,investor profit,miner profit,dead weight,volatility,rmsd,\n{},{},{},{},{},{},{},{},{},{},", 
 			fund_val, total_gas, avg_gas, total_tax, maker_profit, investor_profit, miner_profit, dead_weight, volatility, rmsd));
+		
+		format!("{},{},{},{},{},{},{},{},{},{},", fund_val, total_gas, avg_gas, total_tax, maker_profit, investor_profit, miner_profit, dead_weight, volatility, rmsd)
 	}
 
 	// standard deviation of transaction price differences

@@ -46,6 +46,13 @@ macro_rules! log_results {
 }
 
 
+#[macro_export]
+macro_rules! log_cummulative_results {
+    ($message:expr) => {
+        log!(target: "app::cumm_results", Level::Warn, "{}", $message);
+    }   
+}
+
 pub fn get_time() -> Duration {
     SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)
                          .expect("SystemTime::duration_since failed")
@@ -120,6 +127,11 @@ pub fn setup_logging(file_name: &str) -> log4rs::Handle {
         .encoder(Box::new(PatternEncoder::new("{m}\n")))
         .build(format!("log/results_{}.csv", file_name)).expect("Couldn't set up appender");
 
+    let cumm_results_file = FileAppender::builder()
+        .encoder(Box::new(PatternEncoder::new("{m}\n")))
+        .build(format!("log/total_results.csv")).expect("Couldn't set up appender");
+
+
     // Use builder instead of yaml file
     let config = Config::builder()
         .appender(Appender::builder().build("stdout", Box::new(stdout)))
@@ -127,6 +139,7 @@ pub fn setup_logging(file_name: &str) -> log4rs::Handle {
         .appender(Appender::builder().build("player_data", Box::new(player_data_file)))
         .appender(Appender::builder().build("mempool_data", Box::new(mempool_data_file)))
         .appender(Appender::builder().build("results", Box::new(results_file)))
+        .appender(Appender::builder().build("cumm_results", Box::new(cumm_results_file)))
         // the logger for the order book data. use log!(target: "app::order_books", Level::Warn, "message here");
         .logger(Logger::builder()       
             .appender("order_books")
@@ -146,6 +159,10 @@ pub fn setup_logging(file_name: &str) -> log4rs::Handle {
             .appender("results")
             .additive(false)
             .build("app::results", LevelFilter::Info))
+         .logger(Logger::builder()
+            .appender("cumm_results")
+            .additive(false)
+            .build("app::cumm_results", LevelFilter::Info))
         .build(Root::builder().appender("stdout").build(LevelFilter::Info))
         .expect("Couldn't set up builder");
 
