@@ -62,6 +62,38 @@ impl Constants {
 		format!("{}\n{}", h, d)
 	}
 
+	// Given a consts, make 2 more with differing market type
+	// returned as (CDA, FBA, KLF)
+	pub fn copy3(&self) -> (String, String, String) {
+		match self.market_type {
+			MarketType::CDA => {
+				// Make an FBA and KLF csv
+				let mut fba = self.clone();
+				fba.market_type = MarketType::FBA;
+				let mut klf = self.clone();
+				klf.market_type = MarketType::KLF;
+				return (self.log(), fba.log(), klf.log());
+
+			},
+			MarketType::FBA => {
+				// Make a CDA and KLF csv
+				let mut cda = self.clone();
+				cda.market_type = MarketType::CDA;
+				let mut klf = self.clone();
+				klf.market_type = MarketType::KLF;
+				return (cda.log(), self.log(), klf.log());
+			},
+			MarketType::KLF => {
+				// Make an FBA and CDA csv
+				let mut fba = self.clone();
+				fba.market_type = MarketType::FBA;
+				let mut cda = self.clone();
+				cda.market_type = MarketType::CDA;
+				return (cda.log(), fba.log(), self.log());
+			},
+		}
+	}
+
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Deserialize)]

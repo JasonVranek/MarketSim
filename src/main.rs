@@ -64,7 +64,7 @@ fn main() {
 	let distributions = parse_dist_config_csv(format!("configs/{}", dists_name)).expect("Couldn't parse dists config");
 
 	// Read the constant parameters from the supplied csv file (arg3)
-	let consts = parse_consts_config_csv(format!("configs/{}", consts_name)).expect("Couldn't parse consts config");
+	let consts = parse_consts_config_csv(format!("configs/{}", consts_name)).expect(&format!("Couldn't parse consts config {}", consts_name));
 
 	log_results!(consts.log());
 	

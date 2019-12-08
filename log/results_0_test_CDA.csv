@@ -1,0 +1,55 @@
+reason,v1,v2,scalar,dist_type,
+AsksCenter,110,20,1,Normal,
+BidsCenter,90,20,1,Normal,
+MinerFrameForm,50,200,1,Normal,
+InvestorVolume,0.99,1,1,Uniform,
+InvestorGas,0,1,1,Uniform,
+InvestorEnter,50,100,1,Normal,
+MakerInventory,0,10,1,Normal,
+MakerBalance,0,1,1,Uniform,
+MakerOrderVolume,1,3,1,Uniform,
+InvestorBalance,0,1,1,Uniform,
+InvestorInventory,0,10,1,Normal,
+
+batch_interval,num_investors,num_makers,block_size,num_blocks,market_type,front_run_perc,flow_order_offset,maker_prop_delay,maker_base_spread,maker_enter_prob,max_held_inventory,maker_inv_tax,
+500,10,10,1000,1,CDA,1,5,200,1,0.25,1000,0.01,
+Sim Results before liquidation,
+
+
+Price Volatility,3.474297530242408,
+
+
+rsmd,5.714421621544553,
+
+
+total maker profits,total investor profits,total miner profits,
+-3.5502055948126054,-101.071281339733,102.55565765058009,
+
+
+average gas,total gas,total tax,dead weight loss,
+6.329544325521422,12.659088651042843,2.06582928396551,111.66454070681033,
+
+
+Simulation Results,
+fund val,total gas,avg gas,total tax,maker profit,investor profit,miner profit,dead weight,volatility,rmsd,
+100,12.659088651042843,6.329544325521422,2.06582928396551,-3.5502055948126054,-101.071281339733,102.55565765058009,111.66454070681033,3.474297530242408,5.714421621544553,
+Sim Results after liquidation,
+
+
+Price Volatility,3.474297530242408,
+
+
+rsmd,5.714421621544553,
+
+
+total maker profits,total investor profits,total miner profits,
+-6890.124789881376,-7310.967329193591,3.062033021413896,
+
+
+average gas,total gas,total tax,dead weight loss,
+6.329544325521422,12.659088651042843,2.06582928396551,-6874.403668208919,
+
+
+Simulation Results,
+fund val,total gas,avg gas,total tax,maker profit,investor profit,miner profit,dead weight,volatility,rmsd,
+100,12.659088651042843,6.329544325521422,2.06582928396551,-6890.124789881376,-7310.967329193591,3.062033021413896,-6874.403668208919,3.474297530242408,5.714421621544553,
