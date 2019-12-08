@@ -20,7 +20,7 @@ def main():
 
 
 	# write the header to the total_results.csv file
-	header = "market type,liquidated?,fund val,total gas,avg gas,total tax,maker profit,investor profit,miner profit,dead weight,volatility,rmsd,aggressive mkr prof,riskaverse mkr prof,random mkr profit,\n"
+	header = "market type,liquidated?,fund val,total gas,avg gas,total tax,maker profit,investor profit,miner profit,dead weight,volatility,rmsd,aggressive mkr prof,riskaverse mkr prof,random mkr profit,,num agg,num riska,num rand,\n"
 	f = open("log/total_results.csv", "w")# write header to total_results.csv
 	f.write(header)
 	f.close()

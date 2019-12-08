@@ -400,11 +400,12 @@ impl Simulation {
 		let agg_profit = mkr_profits[MakerT::Aggressive as usize];
 		let riskav_profit = mkr_profits[MakerT::RiskAverse as usize];
 		let rand_profit = mkr_profits[MakerT::Random as usize];
+		let (num_agg, num_riska, num_rand) = self.house.get_maker_counts();
 
-		log_results!(format!("\n\nSimulation Results,\nfund val,total gas,avg gas,total tax,maker profit,investor profit,miner profit,dead weight,volatility,rmsd,aggressive mkr prof,riskaverse mkr prof,random mkr profit,\n{},{},{},{},{},{},{},{},{},{},{},{},{},", 
-			fund_val, total_gas, avg_gas, total_tax, maker_profit, investor_profit, miner_profit, dead_weight, volatility, rmsd, agg_profit, riskav_profit, rand_profit));
+		log_results!(format!("\n\nSimulation Results,\nfund val,total gas,avg gas,total tax,maker profit,investor profit,miner profit,dead weight,volatility,rmsd,aggressive mkr prof,riskaverse mkr prof,random mkr profit,num agg,num riska,num rand,\n{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},", 
+			fund_val, total_gas, avg_gas, total_tax, maker_profit, investor_profit, miner_profit, dead_weight, volatility, rmsd, agg_profit, riskav_profit, rand_profit, num_agg, num_riska, num_rand));
 		
-		format!("{},{},{},{},{},{},{},{},{},{},{},{},{},", fund_val, total_gas, avg_gas, total_tax, maker_profit, investor_profit, miner_profit, dead_weight, volatility, rmsd, agg_profit, riskav_profit, rand_profit)
+		format!("{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},", fund_val, total_gas, avg_gas, total_tax, maker_profit, investor_profit, miner_profit, dead_weight, volatility, rmsd, agg_profit, riskav_profit, rand_profit, num_agg, num_riska, num_rand)
 	}
 
 	// standard deviation of transaction price differences

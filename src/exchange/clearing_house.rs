@@ -201,6 +201,32 @@ impl ClearingHouse {
 		}
 	}	
 
+	// Get count of each type of maker (aggressive, riskaverse, random)
+	pub fn get_maker_counts(&self) -> (i64, i64, i64) {
+		let players = self.players.lock().unwrap();
+		let mut num_agg = 0;
+		let mut num_riska = 0;
+		let mut num_rand = 0;
+		for (_k, player) in players.iter() {
+			if player.get_player_type() == TraderT::Maker {
+				if let Some(maker) = player.as_any().downcast_ref::<Maker>() {
+					match maker.maker_type {
+						MakerT::Aggressive => {
+							num_agg += 1;
+						},
+						MakerT::RiskAverse => {
+							num_riska += 1;
+						},
+						MakerT::Random => {
+							num_rand += 1;
+						},
+					}
+				}
+			}
+		}
+		(num_agg, num_riska, num_rand)
+	}
+
 	pub fn get_bal_inv(&self, id: String) -> Option<(f64, f64)> {
 		let players = self.players.lock().unwrap();
 		match players.get(&id) {
