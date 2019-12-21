@@ -1,15 +1,9 @@
 extern crate flow_rs;
-
-use flow_rs::exchange::MarketType;
-use flow_rs::simulation::simulation_config::{Constants, DistReason};
 use flow_rs::simulation::config_parser::*;
 
-
-#[macro_use]
 extern crate log;
 extern crate log4rs;
 
-use log::{log, Level};
 use std::env;
 use std::fs::File;
 use std::io::prelude::*;

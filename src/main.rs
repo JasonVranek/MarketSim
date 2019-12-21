@@ -10,7 +10,7 @@ use flow_rs::simulation::config_parser::*;
 
 
 use flow_rs::utility::{setup_logging, get_time};
-use flow_rs::*;//{log_order_book, log_player_data, log_mempool_data, log_results, log_cummulative_results};
+use flow_rs::{log_order_book, log_player_data, log_mempool_data, log_results};
 
 
 #[macro_use]
@@ -51,8 +51,21 @@ fn main() {
 		}
 	};
 
+	let enable_log: bool = match args.next() {
+		Some(arg) => {
+			if arg.to_lowercase() == "n" {
+				false
+			} else {
+				true
+			}
+		},
+		None => {
+			true	// logging enabled by default
+		},
+	};
+
 	// Initialize the logger
-	let _logger_handle = setup_logging(&filename);
+	let _logger_handle = setup_logging(&filename, enable_log);
 
 	// Create a new Controller to dispatch our tasks
 	let mut controller = Controller::new();
@@ -66,8 +79,6 @@ fn main() {
 	// Read the constant parameters from the supplied csv file (arg3)
 	let consts = parse_consts_config_csv(format!("configs/{}", consts_name)).expect(&format!("Couldn't parse consts config {}", consts_name));
 
-	log_results!(consts.log());
-	
 	// Write the headers to all of the log files
 	setup_log_headers(&consts);    
 
@@ -138,7 +149,6 @@ fn main() {
 	let (mean_asks, _dev_asks) = simulation.dists.read_dist_params(DistReason::AsksCenter);
 	let fund_val = (mean_bids + mean_asks) / 2.0;
 	println!("fund_val: {}", fund_val);
-	// simulation.house.liquidate(fund_val);
 
 	
 
@@ -147,16 +157,14 @@ fn main() {
 	log_mempool_data!(s);
 	log_player_data!(s);
 
-	log_results!(format!("Sim Results before liquidation,\n"));
 	let res = simulation.calc_performance_results(fund_val, initial_player_state.clone());
-	log_cummulative_results!(format!("{:?},NO,{}", consts.market_type, res));
+	log_results!(format!("{:?},NO,{}", consts.market_type, res));
 
 
 	simulation.house.liquidate(fund_val);
 
-	log_results!(format!("Sim Results after liquidation,\n"));
 	let res = simulation.calc_performance_results(fund_val, initial_player_state);
-	log_cummulative_results!(format!("{:?},YES,{}", consts.market_type, res));
+	log_results!(format!("{:?},YES,{}", consts.market_type, res));
 
 }
 

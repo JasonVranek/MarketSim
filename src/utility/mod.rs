@@ -11,9 +11,6 @@ use log4rs::encode::pattern::PatternEncoder;
 use log4rs::config::{Appender, Config, Root, Logger};
 
 
-
-
-
 #[macro_export]
 macro_rules! log_order_book {
     ($message:expr) => {
@@ -42,13 +39,6 @@ macro_rules! log_results {
     }   
 }
 
-
-#[macro_export]
-macro_rules! log_cummulative_results {
-    ($message:expr) => {
-        log!(target: "app::cumm_results", Level::Warn, "{}", $message);
-    }   
-}
 
 pub fn get_time() -> Duration {
     SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)
@@ -86,47 +76,45 @@ pub fn gen_trader_id(tt: TraderT) -> String {
 }
 
 
-/// Generate a random trader id from random ascii chars
-pub fn gen_rand_trader_id() -> String {
-	let mut rng = thread_rng();
-	let id: String = iter::repeat(())
-        .map(|()| rng.sample(Alphanumeric))
-        .take(10)
-        .collect();
-    id
 
-    // let index = rng.gen_range(0, 3);
-
-    // match index {
-    	// 0 => format!("MKR{}", id),
-    	// 1 => format!("MIN{}", id),
-    	// _ => format!("INV{}", id),
-    // }
-}
-
-
-pub fn setup_logging(file_name: &str) -> log4rs::Handle {
+pub fn setup_logging(file_name: &str, enable_log: bool) -> log4rs::Handle {
     let stdout = ConsoleAppender::builder().build();
+
+    let order_books_name;
+    let player_data_name;
+    let mempool_data_name;
+
+    match enable_log {
+        true => {
+            order_books_name = format!("log/order_books_{}.csv", file_name);
+            player_data_name = format!("log/player_data_{}.csv", file_name);
+            mempool_data_name = format!("log/mempool_data_{}.csv", file_name);
+        },
+        false => {
+            // Write logs to /dev/null if logging is disabled
+            order_books_name = format!("/dev/null");
+            player_data_name = format!("/dev/null");
+            mempool_data_name = format!("/dev/null");
+        },
+    }
+    
+    let results_name = format!("log/results.csv");
 
     let order_books_file = FileAppender::builder()
         .encoder(Box::new(PatternEncoder::new("{m}\n")))
-        .build(format!("log/order_books_{}.csv", file_name)).expect("Couldn't set up appender");
+        .build(order_books_name).expect("Couldn't set up appender");
 
     let player_data_file = FileAppender::builder()
         .encoder(Box::new(PatternEncoder::new("{m}\n")))
-        .build(format!("log/player_data_{}.csv", file_name)).expect("Couldn't set up appender");
+        .build(player_data_name).expect("Couldn't set up appender");
 
     let mempool_data_file = FileAppender::builder()
         .encoder(Box::new(PatternEncoder::new("{m}\n")))
-        .build(format!("log/mempool_data_{}.csv", file_name)).expect("Couldn't set up appender");
+        .build(mempool_data_name).expect("Couldn't set up appender");
 
     let results_file = FileAppender::builder()
         .encoder(Box::new(PatternEncoder::new("{m}\n")))
-        .build(format!("log/results_{}.csv", file_name)).expect("Couldn't set up appender");
-
-    let cumm_results_file = FileAppender::builder()
-        .encoder(Box::new(PatternEncoder::new("{m}\n")))
-        .build(format!("log/total_results.csv")).expect("Couldn't set up appender");
+        .build(results_name).expect("Couldn't set up appender");
 
 
     // Use builder instead of yaml file
@@ -136,7 +124,6 @@ pub fn setup_logging(file_name: &str) -> log4rs::Handle {
         .appender(Appender::builder().build("player_data", Box::new(player_data_file)))
         .appender(Appender::builder().build("mempool_data", Box::new(mempool_data_file)))
         .appender(Appender::builder().build("results", Box::new(results_file)))
-        .appender(Appender::builder().build("cumm_results", Box::new(cumm_results_file)))
         // the logger for the order book data. use log!(target: "app::order_books", Level::Warn, "message here");
         .logger(Logger::builder()       
             .appender("order_books")
@@ -156,10 +143,6 @@ pub fn setup_logging(file_name: &str) -> log4rs::Handle {
             .appender("results")
             .additive(false)
             .build("app::results", LevelFilter::Info))
-         .logger(Logger::builder()
-            .appender("cumm_results")
-            .additive(false)
-            .build("app::cumm_results", LevelFilter::Info))
         .build(Root::builder().appender("stdout").build(LevelFilter::Info))
         .expect("Couldn't set up builder");
 

@@ -520,7 +520,7 @@ impl ClearingHouse {
 	}
 
 
-	// log all of the initial player states
+	// log all of the player states
 	pub fn log_all_players(&self, reason: UpdateReason) {
 		let players = self.players.lock().unwrap();
 		for (_id, player) in players.iter() {

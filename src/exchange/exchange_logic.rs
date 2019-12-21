@@ -686,21 +686,23 @@ impl Auction {
 			let mut bid_orders = bids.orders.lock().expect("couldn't lock");
 			for bid in bid_orders.iter_mut() {
 				let v = bid.calc_flow_demand(clearing_price);
-				// Generate the PlayerUpdate for the ClearingHouse to update the player
-				updates.push(PlayerUpdate::new(
-						bid.trader_id.clone(),
-						format!("N/A"), // No filler id -> assuming trade with ex (update later)
-						bid.order_id,
-						0,				// No filler order -> assuming trade with ex (update later)
-						clearing_price,
-						v
-					));
-				// Modify the order in the order book
-				bid.quantity -= v;
-				// println!("bid:{}, p_l: {}, p_h:{}, trade_vol:{}, old_vol:{}, new_vol:{}", bid.order_id, bid.p_low, bid.p_high, v, bid.quantity + v, bid.quantity);
-				if bid.quantity <= 0.0 {
-					// println!("cancelling flow bid");
-					cancel_bids.push(bid.order_id);
+				// Generate the PlayerUpdate for the ClearingHouse to update the player if they transact at clearing price
+				if v > 0.0 {
+					updates.push(PlayerUpdate::new(
+							bid.trader_id.clone(),
+							format!("N/A"), // No filler id -> assuming trade with ex (update later)
+							bid.order_id,
+							0,				// No filler order -> assuming trade with ex (update later)
+							clearing_price,
+							v
+						));
+					// Modify the order in the order book
+					bid.quantity -= v;
+					// println!("bid:{}, p_l: {}, p_h:{}, trade_vol:{}, old_vol:{}, new_vol:{}", bid.order_id, bid.p_low, bid.p_high, v, bid.quantity + v, bid.quantity);
+					if bid.quantity <= 0.0 {
+						// println!("cancelling flow bid");
+						cancel_bids.push(bid.order_id);
+					}
 				}
 			}
 		}
@@ -708,21 +710,23 @@ impl Auction {
 			let mut ask_orders = asks.orders.lock().expect("couldn't lock");
 			for ask in ask_orders.iter_mut() {
 				let v = ask.calc_flow_supply(clearing_price);
-				// Generate the PlayerUpdate for the ClearingHouse to update the player
-				updates.push(PlayerUpdate::new(
-						format!("N/A"), // No filler id -> assuming trade with ex (update later)
-						ask.trader_id.clone(),
-						0,				// No filler order -> assuming trade with ex (update later)
-						ask.order_id,
-						clearing_price,
-						v
-					));
-				// Modify the order in the order book
-				ask.quantity -= v;
-				// println!("ask:{}, p_l: {}, p_h:{}, trade_vol:{}, old_vol:{}, new_vol:{}", ask.order_id, ask.p_low, ask.p_high, v, ask.quantity + v, ask.quantity);
-				if ask.quantity <= 0.0 {
-					// println!("cancelling flow ask");
-					cancel_asks.push(ask.order_id);
+				// Generate the PlayerUpdate for the ClearingHouse to update the player if they transact at clearing price
+				if v > 0.0 {
+					updates.push(PlayerUpdate::new(
+							format!("N/A"), // No filler id -> assuming trade with ex (update later)
+							ask.trader_id.clone(),
+							0,				// No filler order -> assuming trade with ex (update later)
+							ask.order_id,
+							clearing_price,
+							v
+						));
+					// Modify the order in the order book
+					ask.quantity -= v;
+					// println!("ask:{}, p_l: {}, p_h:{}, trade_vol:{}, old_vol:{}, new_vol:{}", ask.order_id, ask.p_low, ask.p_high, v, ask.quantity + v, ask.quantity);
+					if ask.quantity <= 0.0 {
+						// println!("cancelling flow ask");
+						cancel_asks.push(ask.order_id);
+					}
 				}
 			}
 		}

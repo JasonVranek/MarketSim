@@ -41,13 +41,6 @@ pub fn parse_dist_config_csv(path: String) -> Result<Distributions, Box<dyn Erro
         // deserialization.
         let mut csv_line: TempDist = result?;
         println!("{:?}", csv_line);
-        log_results!(format!("{:?},{},{},{},{:?},", 
-        	csv_line.reason,
-        	csv_line.v1,
-        	csv_line.v2,
-        	csv_line.scalar,
-        	csv_line.dist_type));
-
         lines.push(csv_line.unpack());
 
     }

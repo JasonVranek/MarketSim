@@ -116,14 +116,13 @@ impl Player for Investor {
 	}
 
 	fn log_to_csv(&self, reason: UpdateReason) -> String {
-		format!("{:?},{:?},{},{:?},{},{},{:?},", 
+		format!("{:?},{:?},{},{:?},{},{},", 
 				get_time(), 
 				reason,
 				self.trader_id.clone(),
 				self.player_type.clone(),
 				self.balance,
-				self.inventory,
-				self.orders.lock().expect("log_to_csv"))
+				self.inventory)
 	}
 
 }

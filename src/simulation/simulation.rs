@@ -160,64 +160,67 @@ impl Simulation {
 				// Randomly select an investor
 				let trader_id = house.get_rand_player_id(TraderT::Investor).expect("Couldn't get rand investor");
 
-				// Decide bid or ask
-				let trade_type = match Distributions::fifty_fifty() {
-					true => TradeType::Ask,
-					false => TradeType::Bid,
-				};
+				// Only add a new order if they dont already have one in the book
+				if house.get_player_order_count(&trader_id) == 0 {
+					// Decide bid or ask
+					let trade_type = match Distributions::fifty_fifty() {
+						true => TradeType::Ask,
+						false => TradeType::Bid,
+					};
 
-				// Sample order price from bid/ask distribution
-				let price = match trade_type {
-					TradeType::Ask => dists.sample_dist(DistReason::AsksCenter).expect("couldn't sample price"),
-					TradeType::Bid => dists.sample_dist(DistReason::BidsCenter).expect("couldn't sample price"),
-				};
+					// Sample order price from bid/ask distribution
+					let price = match trade_type {
+						TradeType::Ask => dists.sample_dist(DistReason::AsksCenter).expect("couldn't sample price"),
+						TradeType::Bid => dists.sample_dist(DistReason::BidsCenter).expect("couldn't sample price"),
+					};
 
-				// Sample order volume from bid/ask distribution
-				let quantity = dists.sample_dist(DistReason::InvestorVolume).expect("couldn't sample vol");
+					// Sample order volume from bid/ask distribution
+					let quantity = dists.sample_dist(DistReason::InvestorVolume).expect("couldn't sample vol");
 
-				// Determine if were using flow or limit order
-				let ex_type = match consts.market_type {
-					MarketType::CDA|MarketType::FBA => ExchangeType::LimitOrder,
-					MarketType::KLF => ExchangeType::FlowOrder,
-				};
+					// Determine if were using flow or limit order
+					let ex_type = match consts.market_type {
+						MarketType::CDA|MarketType::FBA => ExchangeType::LimitOrder,
+						MarketType::KLF => ExchangeType::FlowOrder,
+					};
 
-				// Set the p_low and p_high to the price for limit orders
-				let (p_l, p_h) = match ex_type {								
-					ExchangeType::LimitOrder => (price, price),
-					ExchangeType::FlowOrder => {
-						// How to calculate flow order price?
-						match trade_type {
-							TradeType::Ask => (price, price + consts.flow_order_offset),
-							TradeType::Bid => (price - consts.flow_order_offset, price),
+					// Set the p_low and p_high to the price for limit orders
+					let (p_l, p_h) = match ex_type {								
+						ExchangeType::LimitOrder => (price, price),
+						ExchangeType::FlowOrder => {
+							// How to calculate flow order price?
+							match trade_type {
+								TradeType::Ask => (price, price + consts.flow_order_offset),
+								TradeType::Bid => (price - consts.flow_order_offset, price),
+							}
 						}
+					};
+
+					// Generate the order
+					let order = Order::new(trader_id.clone(), 
+										   OrderType::Enter,
+								   	       trade_type,
+									       ex_type,
+									       p_l,
+									       p_h,
+									       price,
+									       quantity,
+									       dists.sample_dist(DistReason::InvestorGas).expect("Couldn't sample gas")
+					);
+
+					// Add the order to the ClearingHouse which will register to the correct investor
+					match house.new_order(order.clone()) {
+						Ok(()) => {
+							// Add the order to the simulation's history
+							history.mempool_order(order.clone());
+							// Send the order to the MemPool
+							OrderProcessor::conc_recv_order(order, Arc::clone(&mempool)).join().expect("Failed to send inv order");
+							
+						},
+						Err(e) => {
+							// If we failed to add the order to the player, don't send it to mempool
+							println!("{:?}", e);
+						},
 					}
-				};
-
-				// Generate the order
-				let order = Order::new(trader_id.clone(), 
-									   OrderType::Enter,
-							   	       trade_type,
-								       ex_type,
-								       p_l,
-								       p_h,
-								       price,
-								       quantity,
-								       dists.sample_dist(DistReason::InvestorGas).expect("Couldn't sample gas")
-				);
-
-				// Add the order to the ClearingHouse which will register to the correct investor
-				match house.new_order(order.clone()) {
-					Ok(()) => {
-						// Add the order to the simulation's history
-						history.mempool_order(order.clone());
-						// Send the order to the MemPool
-						OrderProcessor::conc_recv_order(order, Arc::clone(&mempool)).join().expect("Failed to send inv order");
-						
-					},
-					Err(e) => {
-						// If we failed to add the order to the player, don't send it to mempool
-						println!("{:?}", e);
-					},
 				}
 
 				// Sample from InvestorEnter distribution how long to wait to send next investor
@@ -405,9 +408,6 @@ impl Simulation {
 		// The number of each type of maker in the simulation
 		let (num_agg, num_riska, num_rand) = self.house.get_maker_counts();
 
-		log_results!(format!("\n\nSimulation Results,\nfund val,total gas,avg gas,total tax,maker profit,investor profit,miner profit,dead weight,volatility,rmsd,aggressive mkr prof,riskaverse mkr prof,random mkr profit,num agg,num riska,num rand,\n{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},", 
-			fund_val, total_gas, avg_gas, total_tax, maker_profit, investor_profit, miner_profit, dead_weight, volatility, rmsd, agg_profit, riskav_profit, rand_profit, num_agg, num_riska, num_rand));
-		
 		format!("{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},", fund_val, total_gas, avg_gas, total_tax, maker_profit, investor_profit, miner_profit, dead_weight, volatility, rmsd, agg_profit, riskav_profit, rand_profit, num_agg, num_riska, num_rand)
 	}
 
@@ -443,7 +443,6 @@ impl Simulation {
 		let mean = sum_of_diffs_squared / num;
 		let rsmd = mean.sqrt();
 
-		log_results!(format!("\nrsmd,{},\n", rsmd));
 		rsmd
 	}
 
@@ -456,7 +455,6 @@ impl Simulation {
 		let clearings = self.history.clearings.lock().unwrap();
 
 		// calc avg
-		// log_results!(format!("\nTransaction Prices,"));
 		for (trade_results, _timestamp) in clearings.iter() {
 			if trade_results.uniform_price.is_none() {
 				// CDA look at price of each transaction
@@ -509,7 +507,6 @@ impl Simulation {
 		let mean = sum_of_diffs_squared / num;
 		let volatility = mean.sqrt();
 
-		log_results!(format!("\nPrice Volatility,{},\n", volatility));
 		volatility
 	}
 
@@ -536,8 +533,6 @@ impl Simulation {
 
 		let dead_weight = total_gas + maker_profit + miner_profit;
 
-		log_results!(format!("\naverage gas,total gas,total tax,dead weight loss,\n{},{},{},{},", avg_gas, total_gas, total_tax, dead_weight));
-
 		(total_gas, avg_gas, total_tax, dead_weight)
 	}
 
@@ -557,7 +552,6 @@ impl Simulation {
 					let cur_bal = p.get_bal();
 					let _cur_inv = p.get_inv();
 					let profit = cur_bal - init_bal;
-					// log_results!(format!("maker init bal,init inv,cur bal,cur inv,profit,\n{},{},{},{},{},", init_bal, init_inv, cur_bal, cur_inv, profit));
 					maker_profit += profit;
 				},
 				TraderT::Investor => {
@@ -567,7 +561,6 @@ impl Simulation {
 					let cur_bal = p.get_bal();
 					let _cur_inv = p.get_inv();
 					let profit = cur_bal - init_bal;
-					// log_results!(format!("maker init bal,init inv,cur bal,cur inv,profit,\n{},{},{},{},{},", init_bal, init_inv, cur_bal, cur_inv, profit));
 					investor_profit += profit;
 				},
 				TraderT::Miner => {
@@ -577,13 +570,11 @@ impl Simulation {
 					let cur_bal = p.get_bal();
 					let _cur_inv = p.get_inv();
 					let profit = cur_bal - init_bal;
-					// log_results!(format!("maker init bal,init inv,cur bal,cur inv,profit,\n{},{},{},{},{},", init_bal, init_inv, cur_bal, cur_inv, profit));
 					miner_profit += profit;
 				},
 			}
 		}
 
-		log_results!(format!("\ntotal maker profits,total investor profits,total miner profits,\n{},{},{},\n", maker_profit, investor_profit, miner_profit));
 		(maker_profit, investor_profit, miner_profit)
 	}
 
