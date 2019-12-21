@@ -31,11 +31,11 @@ def main():
 		call = "cargo run {}_{}_KLF {}.csv {}_KLF.csv".format(i, exp_name, dists, consts)
 		os.system(call)
 
-		call = "cargo run {}_{}_FBA {}.csv {}_FBA.csv".format(i, exp_name, dists, consts)
-		os.system(call)
+		# call = "cargo run {}_{}_FBA {}.csv {}_FBA.csv".format(i, exp_name, dists, consts)
+		# os.system(call)
 
-		call = "cargo run {}_{}_CDA {}.csv {}_CDA.csv".format(i, exp_name, dists, consts)
-		os.system(call)
+		# call = "cargo run {}_{}_CDA {}.csv {}_CDA.csv".format(i, exp_name, dists, consts)
+		# os.system(call)
 	
 
 	os.system("mkdir results")

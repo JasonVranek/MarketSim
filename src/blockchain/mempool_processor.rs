@@ -121,7 +121,7 @@ impl MemPoolProcessor {
 
 	// Cancels the previous order and then enters this as a new one
 	// Updates an order in the Bids or Asks Book in it's own thread
-	fn seq_process_update(bids: Arc<Book>, asks: Arc<Book>, order: Order, m_t: MarketType) {
+	fn seq_process_update(bids: Arc<Book>, asks: Arc<Book>, order: Order, _m_t: MarketType) {
 		// update books min/max price if this overwrites current min/max OR this order contains new min/max
 		match order.trade_type {
 			TradeType::Ask => {
@@ -164,7 +164,7 @@ impl MemPoolProcessor {
 	}
 
 	// Cancels the order living in the Bids or Asks Book
-	fn seq_process_cancel(bids: Arc<Book>, asks: Arc<Book>, order: Order, m_t: MarketType) {
+	fn seq_process_cancel(bids: Arc<Book>, asks: Arc<Book>, order: Order, _m_t: MarketType) {
 		let book = match order.trade_type {
 			TradeType::Ask => asks,
 			TradeType::Bid => bids,
@@ -228,7 +228,7 @@ impl MemPoolProcessor {
 
 	// Cancels the previous order and then enters this as a new one
 	// Updates an order in the Bids or Asks Book in it's own thread
-	fn conc_process_update(bids: Arc<Book>, asks: Arc<Book>, order: Order, m_t: MarketType) -> JoinHandle<()> {
+	fn conc_process_update(bids: Arc<Book>, asks: Arc<Book>, order: Order, _m_t: MarketType) -> JoinHandle<()> {
 		// update books min/max price if this overwrites current min/max OR this order contains new min/max
 	    thread::spawn(move || {
 			match order.trade_type {
@@ -273,7 +273,7 @@ impl MemPoolProcessor {
 	}
 
 	// Cancels the order living in the Bids or Asks Book
-	fn conc_process_cancel(bids: Arc<Book>, asks: Arc<Book>, order: Order, m_t: MarketType) -> JoinHandle<()> {
+	fn conc_process_cancel(bids: Arc<Book>, asks: Arc<Book>, order: Order, _m_t: MarketType) -> JoinHandle<()> {
 	    thread::spawn(move || {
 			let book = match order.trade_type {
 				TradeType::Ask => asks,

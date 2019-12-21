@@ -1,6 +1,3 @@
-// #![macro_escape]
-
-
 use crate::players::TraderT;
 use std::time::{Duration, SystemTime};
 use rand::{Rng, thread_rng};
@@ -13,7 +10,7 @@ use log4rs::append::file::FileAppender;
 use log4rs::encode::pattern::PatternEncoder;
 use log4rs::config::{Appender, Config, Root, Logger};
 
-use log::{Level};
+
 
 
 

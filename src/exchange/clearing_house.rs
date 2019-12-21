@@ -471,9 +471,11 @@ impl ClearingHouse {
 		sum
 	}
 
+	// Updates the cummulative gas fees from the simulation, as well subtracts the
+	// gas fees from each player's balance
 	pub fn apply_gas_fees(&self, to_change: Vec<(String, f64)>, total: f64) {
-		// Add the gas fees for this batch
 		{
+			// Add the gas fees for this batch
 			self.gas_fees.lock().expect("apply_gas_fees").push(total);
 		}
 

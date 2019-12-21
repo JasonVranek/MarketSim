@@ -17,7 +17,7 @@ const EPSILON: f64 =  0.000_001;
 const MAX_PRICE: f64 = 999_999_999.0;
 const MIN_PRICE: f64 = 0.0;
 const MAX_ITERS: usize = 1000;
-const PRECISION: i8 = 4;
+// const PRECISION: i8 = 4;
 
 #[derive(Debug, Clone)]
 pub struct PlayerUpdate {
@@ -355,7 +355,7 @@ impl Auction {
 
 		// Initialize vars to track volume seen while traversing the merged book
 		let mut seen_vol = 0.0;
-		let mut prev_seen_vol = 0.0;
+		// let mut prev_seen_vol = 0.0;
 		let mut prev_order_price = 0.0;	// is 0.0 acceptable?
 		let mut cur_order_price = 0.0;
 
@@ -373,7 +373,7 @@ impl Auction {
 			}
 
 			// Process seen volumes
-			prev_seen_vol = seen_vol;
+			// prev_seen_vol = seen_vol;
 			seen_vol += order.quantity;
 			println!("Checking price:{}, seen_vol:{} / ask_vol:{}", cur_order_price, seen_vol, ask_book_vol);
 			if seen_vol >= ask_book_vol {
@@ -553,34 +553,6 @@ impl Auction {
 		// Add all of the PlayerUpdates to our TradeResults
 		result.cross_results = Some(updates);
 		return Some(result)
-	}
-
-	/// FBA clearing price using binary search...
-	pub fn frequent_batch_auction2(bids: Arc<Book>, asks: Arc<Book>) -> Option<TradeResults> {
-		unimplemented!();
-
-		// Check if auction necessary
-		if bids.len() == 0 || asks.len() == 0 {
-			let result = TradeResults::new(MarketType::FBA, None, 0.0, 0.0, None);
-			return Some(result);
-		}
-
-		// There will be no crossings if best bid < best ask
-		if bids.get_max_price() < asks.get_min_price() {
-			let result = TradeResults::new(MarketType::FBA, None, 0.0, 0.0, None);
-			return Some(result);
-		}
-
-		// Start from the bids in descending order and calculate total seen volume as you move left
-
-		// Start from the asks in ascending order and calculate total seen volume as you move right
-
-		// If bid price >= ask price, we have crossed. uniform price = 
-
-		// Volume to trade is the min(seen_bid_vol, seen_ask_vol)
-
-
-		return None;
 	}
 
 

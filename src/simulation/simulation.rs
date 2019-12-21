@@ -19,8 +19,7 @@ use std::sync::Arc;
 use std::{time, thread};
 use std::thread::JoinHandle;
 
-use log::{Level, Log};
-
+use log::{Level};
 
 
 pub struct BlockNum {pub num: Mutex<u64>}
@@ -100,20 +99,20 @@ impl Simulation {
 
 	/// Initializes Investor players. Randomly samples the maker's initial balance and inventory
 	/// using the distribution configs. Number of makers saved in consts.
-	pub fn setup_investors(dists: &Distributions, consts: &Constants) -> Vec<Investor> {
+	pub fn setup_investors(_dists: &Distributions, consts: &Constants) -> Vec<Investor> {
 		let mut invs = Vec::new();
 		for _ in 1..consts.num_investors {
-			let mut i = Investor::new(gen_trader_id(TraderT::Investor));
-			if let Some(bal) = dists.sample_dist(DistReason::InvestorBalance) {
-				i.balance = bal;
-			} else {
-				panic!("Couldn't setup investor balance");
-			}
-			if let Some(inv) = dists.sample_dist(DistReason::InvestorInventory) {
-				i.inventory = inv;
-			} else {
-				panic!("Couldn't setup investor inventory");
-			}
+			let i = Investor::new(gen_trader_id(TraderT::Investor));
+			// if let Some(bal) = dists.sample_dist(DistReason::InvestorBalance) {
+			// 	i.balance = bal;
+			// } else {
+			// 	panic!("Couldn't setup investor balance");
+			// }
+			// if let Some(inv) = dists.sample_dist(DistReason::InvestorInventory) {
+			// 	i.inventory = inv;
+			// } else {
+			// 	panic!("Couldn't setup investor inventory");
+			// }
 			invs.push(i);
 		}
 		invs
@@ -121,7 +120,7 @@ impl Simulation {
 
 	/// Initializes Maker players. Randomly samples the maker's initial balance and inventory
 	/// using the distribution configs. Number of makers saved in consts.
-	pub fn setup_makers(dists: &Distributions, consts: &Constants) -> Vec<Maker> {
+	pub fn setup_makers(_dists: &Distributions, consts: &Constants) -> Vec<Maker> {
 		let mut mkrs = Vec::new();
 		for _ in 1..consts.num_makers {
 			// random id
@@ -129,17 +128,17 @@ impl Simulation {
 			// random behavioral type for strategy
 			let maker_type = Maker::gen_rand_type();
 
-			let mut m = Maker::new(id, maker_type);
-			if let Some(bal) = dists.sample_dist(DistReason::MakerBalance) {
-				m.balance = bal;
-			} else {
-				panic!("Couldn't setup maker balance");
-			}
-			if let Some(inv) = dists.sample_dist(DistReason::MakerInventory) {
-				m.inventory = inv;
-			} else {
-				panic!("Couldn't setup maker inventory");
-			}
+			let m = Maker::new(id, maker_type);
+			// if let Some(bal) = dists.sample_dist(DistReason::MakerBalance) {
+			// 	m.balance = bal;
+			// } else {
+			// 	panic!("Couldn't setup maker balance");
+			// }
+			// if let Some(inv) = dists.sample_dist(DistReason::MakerInventory) {
+			// 	m.inventory = inv;
+			// } else {
+			// 	panic!("Couldn't setup maker inventory");
+			// }
 			mkrs.push(m);
 		}
 		mkrs
@@ -209,7 +208,6 @@ impl Simulation {
 				// Add the order to the ClearingHouse which will register to the correct investor
 				match house.new_order(order.clone()) {
 					Ok(()) => {
-						// println!("{:?}", order);
 						// Add the order to the simulation's history
 						history.mempool_order(order.clone());
 						// Send the order to the MemPool
@@ -244,6 +242,7 @@ impl Simulation {
 
 			// Collect the gas from the frame
 			let (gas_changes, total_gas) = miner.collect_gas();
+			// Update the players' gas amounts
 			house.apply_gas_fees(gas_changes, total_gas);
 
 			// Publish the miner's current frame
@@ -262,16 +261,17 @@ impl Simulation {
 
 				// Save new book state to the history
 				history.clone_book_state(copied_bids, TradeType::Bid, *block_num.num.lock().unwrap());
-				history.clone_book_state(copied_asks, TradeType::Bid, *block_num.num.lock().unwrap());
-				
-				// time,block_num,book_type,clearing_price,bids_book,asks_book,
-				block_num.inc_count();
+				history.clone_book_state(copied_asks, TradeType::Ask, *block_num.num.lock().unwrap());
+
 				for res in vec_results {
 					// Update the clearing house and history
 					history.save_results(res.clone());
 					house.update_house(res);
 				}
 			}
+
+			// Update the block num
+			block_num.inc_count();
 
 			// Tax the makers holding inventory
 			house.tax_makers(consts.maker_inv_tax);
@@ -328,9 +328,7 @@ impl Simulation {
 			// Copy the current mempool
 			let pool;
 			{
-				let mempool = mempool.items.lock().expect("maker task pool");
-				pool = mempool.clone();
-
+				pool = mempool.items.lock().expect("maker task pool").clone();
 			}
 
 			// use History to produce inference and decision data
@@ -346,21 +344,18 @@ impl Simulation {
 				// Randomly choose whether the maker should try to trade this block
 				match Distributions::do_with_prob(consts.maker_enter_prob) {
 					true => {},
-					false => continue,
+					false => continue,	// Don't trade this batch
 				}
 
-				// Each maker interprets the data to produce their order based on their type 
+				// Each maker interprets the data to produce their pair of orders based on their type 
 				if let Some((bid_order, ask_order)) = house.maker_new_orders(id.clone(), &decision_data, &inference_data, &dists, &consts) {
-					// println!("BIDORDER:{:?} \n, ASKORDER:{:?}", bid_order, ask_order);
-					
 					// Add the order to the ClearingHouse which will register to the correct maker
 					match house.new_order(bid_order.clone()) {
 						Ok(()) => {
-							// println!("{:?}", bid_order);
 							// Add the bid_order to the simulation's history
 							history.mempool_order(bid_order.clone());
 							// Send the bid_order to the MemPool
-							OrderProcessor::conc_recv_order(bid_order, Arc::clone(&mempool)).join().expect("Failed to send inv order");
+							OrderProcessor::conc_recv_order(bid_order, Arc::clone(&mempool)).join().expect("Failed to send maker bid order");
 							
 						},
 						Err(e) => {
@@ -376,7 +371,7 @@ impl Simulation {
 							// Add the ask_order to the simulation's history
 							history.mempool_order(ask_order.clone());
 							// Send the ask_order to the MemPool
-							OrderProcessor::conc_recv_order(ask_order, Arc::clone(&mempool)).join().expect("Failed to send inv order");
+							OrderProcessor::conc_recv_order(ask_order, Arc::clone(&mempool)).join().expect("Failed to send maker ask order");
 							
 						},
 						Err(e) => {
@@ -386,20 +381,28 @@ impl Simulation {
 					}
 				}	
 			}
+			// Wait until the next batch + maker propagation delay to rerun the maker task
 		}, consts.batch_interval + consts.maker_prop_delay)
 	}
 
-	// Calculates costs
+	// Calculates performance metrics for the simulation and returns a CSV formatted string of the results
+	// init_player_s = a hashmap of the initial player balances and inventories
+	// fund_val: the fixed fundamental value for the simulation
 	pub fn calc_performance_results(&self, fund_val: f64, init_player_s: HashMap<String, (f64, f64)>) -> String {
 		let volatility = self.calc_price_volatility();
 		let rmsd = self.calc_rmsd(fund_val);
 		let (maker_profit, investor_profit, miner_profit) = self.calc_total_profit(init_player_s);
 		let (total_gas, avg_gas, total_tax, dead_weight) = self.calc_social_welfare(maker_profit, investor_profit, miner_profit);
 		
+		// The cummulative profit made by all of the makers
 		let mkr_profits = self.house.maker_profits.lock().unwrap();
+		// The cummulative profits made by all Aggressive type makers
 		let agg_profit = mkr_profits[MakerT::Aggressive as usize];
+		// The cummulative profits made by all the RiskAverse type makers
 		let riskav_profit = mkr_profits[MakerT::RiskAverse as usize];
+		// The cummulative profits made by all the Random type makers
 		let rand_profit = mkr_profits[MakerT::Random as usize];
+		// The number of each type of maker in the simulation
 		let (num_agg, num_riska, num_rand) = self.house.get_maker_counts();
 
 		log_results!(format!("\n\nSimulation Results,\nfund val,total gas,avg gas,total tax,maker profit,investor profit,miner profit,dead weight,volatility,rmsd,aggressive mkr prof,riskaverse mkr prof,random mkr profit,num agg,num riska,num rand,\n{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},", 
@@ -408,7 +411,7 @@ impl Simulation {
 		format!("{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},", fund_val, total_gas, avg_gas, total_tax, maker_profit, investor_profit, miner_profit, dead_weight, volatility, rmsd, agg_profit, riskav_profit, rand_profit, num_agg, num_riska, num_rand)
 	}
 
-	// standard deviation of transaction price differences
+	// standard deviation of transaction price differences relative to the fundamental value
 	pub fn calc_rmsd(&self, fund_val: f64) -> f64{
 		// Results saved in history.clearings
 		let mut num = 0.0;
@@ -444,7 +447,7 @@ impl Simulation {
 		rsmd
 	}
 
-	// standard deviation of transaction price differences
+	// standard deviation of transaction price differences relative to different orders
 	pub fn calc_price_volatility(&self) -> f64{
 		// Results saved in history.clearings
 		let mut num = 0.0;
@@ -462,7 +465,6 @@ impl Simulation {
 						for p_u in player_updates {
 							println!("{:?}", p_u);
 							let p = p_u.price;
-							// log_results!(format!("{},", p));
 							mean += p;
 							num += 1.0;
 						}
@@ -473,7 +475,6 @@ impl Simulation {
 			} else {
 				// FBA or KLF just need to look at uniform clearing price
 				let p = trade_results.uniform_price.unwrap();
-				// log_results!(format!("{},", p));
 				mean += p;
 				num += 1.0;
 			}
@@ -540,6 +541,8 @@ impl Simulation {
 		(total_gas, avg_gas, total_tax, dead_weight)
 	}
 
+	// Calculates the total profits final_bal - current_bal of each player
+	// returns (maker_profit, investor_profit, miner_profit)
 	pub fn calc_total_profit(&self, init_player_s: HashMap<String, (f64, f64)>) -> (f64, f64, f64) {
 		// Get final states
 		let players = self.house.players.lock().unwrap();
@@ -550,29 +553,29 @@ impl Simulation {
 			match p.get_player_type() {
 				TraderT::Maker => {
 					// get initial bal and inv
-					let (init_bal, init_inv) = init_player_s.get(&k.clone()).expect("calc_total_profit");
+					let (init_bal, _init_inv) = init_player_s.get(&k.clone()).expect("calc_total_profit");
 					let cur_bal = p.get_bal();
-					let cur_inv = p.get_inv();
+					let _cur_inv = p.get_inv();
 					let profit = cur_bal - init_bal;
 					// log_results!(format!("maker init bal,init inv,cur bal,cur inv,profit,\n{},{},{},{},{},", init_bal, init_inv, cur_bal, cur_inv, profit));
 					maker_profit += profit;
 				},
 				TraderT::Investor => {
 					// get initial bal and inv
-					let (init_bal, init_inv) = init_player_s.get(&k.clone()).expect("calc_total_profit");
+					let (init_bal, _init_inv) = init_player_s.get(&k.clone()).expect("calc_total_profit");
 					// search current bal and inv
 					let cur_bal = p.get_bal();
-					let cur_inv = p.get_inv();
+					let _cur_inv = p.get_inv();
 					let profit = cur_bal - init_bal;
 					// log_results!(format!("maker init bal,init inv,cur bal,cur inv,profit,\n{},{},{},{},{},", init_bal, init_inv, cur_bal, cur_inv, profit));
 					investor_profit += profit;
 				},
 				TraderT::Miner => {
 					// get initial bal and inv
-					let (init_bal, init_inv) = init_player_s.get(&k.clone()).expect("calc_total_profit");
+					let (init_bal, _init_inv) = init_player_s.get(&k.clone()).expect("calc_total_profit");
 					// search current bal and inv
 					let cur_bal = p.get_bal();
-					let cur_inv = p.get_inv();
+					let _cur_inv = p.get_inv();
 					let profit = cur_bal - init_bal;
 					// log_results!(format!("maker init bal,init inv,cur bal,cur inv,profit,\n{},{},{},{},{},", init_bal, init_inv, cur_bal, cur_inv, profit));
 					miner_profit += profit;

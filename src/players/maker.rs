@@ -1,6 +1,6 @@
 use crate::simulation::simulation_history::UpdateReason;
 use crate::utility::get_time;
-use crate::simulation::simulation_config::{Distributions, Constants, DistReason};
+use crate::simulation::simulation_config::{Distributions, Constants};
 use crate::simulation::simulation_history::{PriorData, LikelihoodStats};
 use crate::exchange::MarketType;
 use crate::players::{Player, TraderT};
