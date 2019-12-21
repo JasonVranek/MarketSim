@@ -35,7 +35,6 @@ pub fn parse_dist_config_csv(path: String) -> Result<Distributions, Box<dyn Erro
     let mut lines: Vec<(DistReason, f64, f64, f64, DistType)> = Vec::new();
     let mut rdr = csv::Reader::from_path(path)?;
     println!("Reading in config file...");
-    log_results!("reason,v1,v2,scalar,dist_type,");
     for result in rdr.deserialize() {
         // Notice that we need to provide a type hint for automatic
         // deserialization.

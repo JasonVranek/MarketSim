@@ -6,7 +6,8 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::Duration;
 
-
+const MAX_PRICE: f64 = 999_999_999.0;
+const MIN_PRICE: f64 = 0.0;
 
 // Reasons a player's updated state
 #[derive(Clone, Debug, Copy)]
@@ -329,7 +330,22 @@ impl History {
 		} else {
 			return (None, None);
 		}
-		
+	}
+
+	pub fn get_best_prices(&self) -> (f64, f64) {
+		let (best_bid, best_ask) = self.get_best_orders();
+		if best_bid.is_none() && best_ask.is_none() {
+			(MIN_PRICE, MAX_PRICE)
+		} 
+		else if best_bid.is_none() && best_ask.is_some() {
+			(MIN_PRICE, best_ask.unwrap().price)
+		}
+		else if best_bid.is_none() && best_ask.is_none() {
+			(best_bid.unwrap().price, MAX_PRICE)
+		}
+		else {
+			(best_bid.unwrap().price, best_ask.unwrap().price)
+		}
 	}
 
 	// Returns the most recent list of bids and asks and their volumes: 

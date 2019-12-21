@@ -1,6 +1,6 @@
 use crate::simulation::simulation_history::UpdateReason;
 use crate::players::{Player,TraderT};
-use crate::order::order::Order;
+use crate::order::order::{Order, TradeType};
 use crate::blockchain::mem_pool::MemPool;
 use crate::blockchain::mempool_processor::MemPoolProcessor;
 use crate::order::order_book::Book;
@@ -76,7 +76,7 @@ impl Miner {
 	}
 
 	// Selects a random order from the frame and appends an identical order with higher block priority
-	pub fn front_run(&mut self) -> Result<Order, &'static str> {
+	pub fn random_front_run(&mut self) -> Result<Order, &'static str> {
 		let mut rng = thread_rng();
 		if let Some(rand_order) = self.frame.choose(&mut rng) {
 			// Copy and update order 
@@ -92,6 +92,85 @@ impl Miner {
 			Err("No orders in the frame to front-run")
 		}
 
+	}
+
+	// Selects the best priced bid or ask in the book and checks against best bid or ask in order book
+	pub fn strategic_front_run(&mut self, best_bid_price: f64, best_ask_price: f64) -> Result<Order, &'static str> {
+		if self.frame.len() == 0 {
+			return Err("No orders in the frame to front-run");
+		}
+
+		let mut orders = self.frame.clone();
+		// Sort frame in descending order by price
+		orders.sort_by(|a, b| a.price.partial_cmp(&b.price).unwrap());
+		// look for highest priced bid and lowest priced ask
+		let mut best_bid: Option<Order> = None;
+		let mut best_ask: Option<Order> = None;
+
+		for o in orders.iter() {
+			match o.trade_type {
+				TradeType::Bid => {
+					// The best bid will be the first bid order in descending price order
+					if best_bid.is_none() {
+						best_bid = Some(o.clone());
+					}
+				},
+				TradeType::Ask => {
+					// The best ask in frame will be the last ask order in descending price order
+					best_ask = Some(o.clone());
+				},
+			}  
+		}
+		println!("\norders in frame: {:?} \n selecting {:?}, {:?}", orders, best_bid, best_ask);
+
+
+		let mut front_run_order;
+		if best_bid.is_none() && best_ask.is_none() {
+			return Err("No orders in the frame to front-run");
+		} 
+		else if best_bid.is_some() && best_ask.is_none() {
+			front_run_order = best_bid.expect("frontrun");
+		} 
+		else if best_bid.is_none() && best_ask.is_some() {
+			front_run_order = best_ask.expect("frontrun");
+		} 
+		else {
+			// found both a best bid and best ask, pick the better one relative to current best book prices
+			let best_bid = best_bid.expect("frontrun");
+			let best_ask = best_ask.expect("frontrun");
+			let bid_profit = best_ask_price - best_bid.price;
+			let ask_profit = best_ask.price - best_bid_price;
+			println!("\nbid_profit: {}, ask prof: {}\n", bid_profit, ask_profit, );
+			if bid_profit < 0.0 && ask_profit < 0.0 {
+				// Both orders are worse than best prices in order book, don't front-run
+				return Err("No orders in the frame good enough to front-run");
+			}
+			else if bid_profit >= 0.0 && ask_profit < 0.0 {
+				front_run_order = best_bid;
+			} 
+			else if bid_profit < 0.0 && ask_profit >= 0.0 {
+				front_run_order = best_ask;
+			} 
+			else {
+				// Both bid and ask orders are better than best prices in order book, pick order with smallest delta
+				if bid_profit >= ask_profit {
+					front_run_order = best_ask;
+				} else {
+					front_run_order = best_bid;
+				}
+			}
+		}
+
+		println!("\nbest bid: {}, best ask: {}, Chose frontrun order: {:?}\n", best_bid_price, best_ask_price, front_run_order);
+
+		// Copy and update order 
+		front_run_order.trader_id = self.trader_id.clone();
+		front_run_order.gas = 0.0;	// No gas needed since this is miner
+		front_run_order.order_id = gen_order_id();
+
+		// Add order to highest priority spot in frame
+		self.frame.insert(0, front_run_order.clone());
+		return Ok(front_run_order);
 	}
 
 	// Iterate through each order in frame and make a vec to update the

@@ -291,7 +291,8 @@ impl Simulation {
 			// Miner will front-run with some probability: 
 			match Distributions::do_with_prob(consts.front_run_perc) {
 				true => {
-					match miner.front_run() {
+					let (best_bid_price, best_ask_price) = history.get_best_prices();
+					match miner.strategic_front_run(best_bid_price, best_ask_price) {
 						Ok(order) => {
 							println!("Miner inserted a front-run order: {}", order.order_id);
 							// Log the order as if it were sent to the mempool

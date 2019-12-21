@@ -535,14 +535,14 @@ impl ClearingHouse {
 			let cur_inv = player.get_inv();
 			if cur_inv < 0.0 {
 				// player has negative inventory and so will buy at fund_val
+				// cur_inv is negative so cur_inv * fund_val < 0, which subtracts from player bal
 				player.update_bal(cur_inv * fund_val);
 				player.update_inv(-cur_inv);
-			} else if cur_inv > 0.0 {
-				// player has positive inventory and so will sell at fund_val
-				player.update_bal(-cur_inv * fund_val);
-				player.update_inv(-cur_inv); 
 			} else {
-
+				// player has positive inventory and so will sell at fund_val
+				// cur_inv is positive so cur_inv * fundval > 0 which adds to their player bal
+				player.update_bal(cur_inv * fund_val);
+				player.update_inv(-cur_inv); 
 			}
     		log_player_data!(player.log_to_csv(UpdateReason::Liquify));
 		}
