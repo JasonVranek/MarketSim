@@ -9,7 +9,7 @@ use flow_rs::simulation::simulation::{Simulation};
 use flow_rs::simulation::config_parser::*;
 
 
-use flow_rs::utility::{setup_logging, get_time};
+use flow_rs::utility::{setup_logging, get_time, setup_log_headers};
 use flow_rs::{log_order_book, log_player_data, log_mempool_data, log_results};
 
 
@@ -80,7 +80,7 @@ fn main() {
 	let consts = parse_consts_config_csv(format!("configs/{}", consts_name)).expect(&format!("Couldn't parse consts config {}", consts_name));
 
 	// Write the headers to all of the log files
-	setup_log_headers(&consts);    
+	setup_log_headers(consts.market_type.clone());    
 
 	// Initial state of the sim
 	let (simulation, miner) = Simulation::init_simulation(distributions, consts.clone());
@@ -145,6 +145,7 @@ fn main() {
 	// Log the final state of the players
 	simulation.house.log_all_players(UpdateReason::Final);
 
+	// Calculate the fundamental value from the configs
 	let (mean_bids, _dev_bids) = simulation.dists.read_dist_params(DistReason::BidsCenter);
 	let (mean_asks, _dev_asks) = simulation.dists.read_dist_params(DistReason::AsksCenter);
 	let fund_val = (mean_bids + mean_asks) / 2.0;
@@ -157,30 +158,21 @@ fn main() {
 	log_mempool_data!(s);
 	log_player_data!(s);
 
+	// Calculate the pre liquidation performance results
 	let res = simulation.calc_performance_results(fund_val, initial_player_state.clone());
 	log_results!(format!("{:?},NO,{}", consts.market_type, res));
 
-
+	// Each player transacts all non-zero inventory at the fundamental value
 	simulation.house.liquidate(fund_val);
 
+	// Calculate the post liquidation performance results
 	let res = simulation.calc_performance_results(fund_val, initial_player_state);
 	log_results!(format!("{:?},YES,{}", consts.market_type, res));
 
 }
 
 
-fn setup_log_headers(consts: &Constants) {
-	// Setup the logfile headers
-	log_player_data!(format!("time,reason,trader_id,player_type,balance,inventory,orders,"));
-    log_mempool_data!(format!("time,trader_id,order_id,order_type,trade_type,ex_type,p_low,p_high,price,quantity,gas,"));
 
-    match consts.market_type {
-    	MarketType::CDA => {
-    		log_order_book!("time,new_order_trader_id,new_order_order_id,new_order_order_type,new_order_trade_type,new_order_ex_type,new_order_p_low,new_order_p_high,new_order_price,new_order_quantity,new_order_gas,bids_after,asks_after");
-    	},
-    	_ => log_order_book!(format!("time,block_num,book_type,clearing_price,book_before,book_after,")),
-    }
-}
 
 
 

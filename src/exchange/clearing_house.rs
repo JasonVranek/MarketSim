@@ -114,6 +114,12 @@ impl ClearingHouse {
 		p.num_orders()
 	}
 
+	pub fn get_type(&self, id: &String) -> TraderT {
+		let players = self.players.lock().unwrap();
+		let p = players.get(id).expect("get_player_order_count");
+		p.get_player_type()
+	}
+
 	// Shuffles through the players matching the player_type and returns their id
 	pub fn get_rand_player_id(&self, player_type: TraderT) -> Option<String> {
 		let players = self.players.lock().unwrap();
@@ -533,6 +539,9 @@ impl ClearingHouse {
 		let mut players = self.players.lock().unwrap();
 		for (_id, player) in players.iter_mut() {
 			let cur_inv = player.get_inv();
+			if player.get_player_type() == TraderT::Maker {
+				println!("maker inv:{}", cur_inv);
+			}
 			if cur_inv < 0.0 {
 				// player has negative inventory and so will buy at fund_val
 				// cur_inv is negative so cur_inv * fund_val < 0, which subtracts from player bal

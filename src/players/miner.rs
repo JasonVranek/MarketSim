@@ -121,7 +121,7 @@ impl Miner {
 				},
 			}  
 		}
-		println!("\norders in frame: {:?} \n selecting {:?}, {:?}", orders, best_bid, best_ask);
+		// println!("\norders in frame: {:?} \n selecting {:?}, {:?}", orders, best_bid, best_ask);
 
 
 		let mut front_run_order;
@@ -140,7 +140,7 @@ impl Miner {
 			let best_ask = best_ask.expect("frontrun");
 			let bid_profit = best_ask_price - best_bid.price;
 			let ask_profit = best_ask.price - best_bid_price;
-			println!("\nbid_profit: {}, ask prof: {}\n", bid_profit, ask_profit, );
+			// println!("\nbid_profit: {}, ask prof: {}\n", bid_profit, ask_profit, );
 			if bid_profit < 0.0 && ask_profit < 0.0 {
 				// Both orders are worse than best prices in order book, don't front-run
 				return Err("No orders in the frame good enough to front-run");
@@ -161,7 +161,7 @@ impl Miner {
 			}
 		}
 
-		println!("\nbest bid: {}, best ask: {}, Chose frontrun order: {:?}\n", best_bid_price, best_ask_price, front_run_order);
+		// println!("\nbest bid: {}, best ask: {}, Chose frontrun order: {:?}\n", best_bid_price, best_ask_price, front_run_order);
 
 		// Copy and update order 
 		front_run_order.trader_id = self.trader_id.clone();

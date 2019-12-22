@@ -1,4 +1,4 @@
-use crate::exchange::exchange_logic::TradeResults;
+use crate::exchange::exchange_logic::{TradeResults, PlayerUpdate};
 use crate::exchange::MarketType;
 use crate::order::order::{Order, TradeType};
 use crate::utility::get_time;
@@ -121,6 +121,7 @@ pub struct History {
 	pub order_books: Mutex<Vec<ShallowBook>>,
 	pub clearings: Mutex<Vec<(TradeResults, Duration)>>,
 	pub market_type: MarketType,
+	pub transactions: Mutex<Vec<PlayerUpdate>>,
 }
 
 
@@ -131,6 +132,7 @@ impl History {
 			order_books: Mutex::new(Vec::new()),
 			clearings: Mutex::new(Vec::new()),
 			market_type: m,
+			transactions: Mutex::new(Vec::new()),
 		}
 	}
 
@@ -161,6 +163,17 @@ impl History {
 	}
 
 	pub fn save_results(&self, results: TradeResults) {
+		let mut txs = self.transactions.lock().expect("save_results");
+		// Save each player update within the trade results each trans
+		if results.cross_results.is_some() {
+			let crosses = results.cross_results.clone();
+			let crosses = crosses.unwrap();
+			for player_update in crosses {
+				txs.push(player_update.clone());
+			}
+		}
+
+		// Save the trade results to clearing
 		let mut clearings = self.clearings.lock().expect("save_results");
 		clearings.push((results, get_time()));
 	}
@@ -176,6 +189,7 @@ impl History {
 			None => None,
 		}
 	}
+
 
 	pub fn average_order_prices(orders: &Vec<Order>, market_type: MarketType) -> (Option<f64>, Option<f64>, usize, usize, Option<f64>) {
 		let (mut asks_sum, mut bids_sum) = (0.0, 0.0);

@@ -22,7 +22,7 @@ def main():
 
 
 	# write the header to the total_results.csv file
-	header = "market type,liquidated?,fund val,total gas,avg gas,total tax,maker profit,investor profit,miner profit,dead weight,volatility,rmsd,aggressive mkr prof,riskaverse mkr prof,random mkr profit,,num agg,num riska,num rand,\n"
+	header = "market type,liquidated?,fund val,total gas,avg gas,total tax,maker profit,investor profit,miner profit,dead weight,volatility,rmsd,aggressive mkr prof,riskaverse mkr prof,random mkr profit,num agg,num riska,num rand,inv_welf,mkr_welf,min_welf,\n"
 	f = open("log/results.csv".format(exp_name), "w")# write header to total_results.csv
 	f.write(header)
 	f.close()
@@ -33,11 +33,11 @@ def main():
 		call = "cargo run {}_{}_KLF {}.csv {}_KLF.csv {}".format(i, exp_name, dists, consts, enable_log)
 		os.system(call)
 
-		# call = "cargo run {}_{}_FBA {}.csv {}_FBA.csv {}".format(i, exp_name, dists, consts, enable_log)
-		# os.system(call)
+		call = "cargo run {}_{}_FBA {}.csv {}_FBA.csv {}".format(i, exp_name, dists, consts, enable_log)
+		os.system(call)
 
-		# call = "cargo run {}_{}_CDA {}.csv {}_CDA.csv {}".format(i, exp_name, dists, consts, enable_log)
-		# os.system(call)
+		call = "cargo run {}_{}_CDA {}.csv {}_CDA.csv {}".format(i, exp_name, dists, consts, enable_log)
+		os.system(call)
 	
 
 	os.system("mkdir results")

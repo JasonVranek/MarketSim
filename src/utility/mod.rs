@@ -1,10 +1,11 @@
+use crate::exchange::MarketType;
 use crate::players::TraderT;
 use std::time::{Duration, SystemTime};
 use rand::{Rng, thread_rng};
 use rand::distributions::Alphanumeric;
 use std::iter;
 
-use log::{LevelFilter};
+use log::{LevelFilter, Level};
 use log4rs::append::console::ConsoleAppender;
 use log4rs::append::file::FileAppender;
 use log4rs::encode::pattern::PatternEncoder;
@@ -154,6 +155,21 @@ pub fn setup_logging(file_name: &str, enable_log: bool) -> log4rs::Handle {
     handle
 }
 
+
+
+// Write the headers to the csv logs
+pub fn setup_log_headers(market_type: MarketType) {
+    // Setup the logfile headers
+    log_player_data!(format!("time,reason,trader_id,player_type,balance,inventory,orders,"));
+    log_mempool_data!(format!("time,trader_id,order_id,order_type,trade_type,ex_type,p_low,p_high,price,quantity,gas,"));
+
+    match market_type {
+        MarketType::CDA => {
+            log_order_book!("time,new_order_trader_id,new_order_order_id,new_order_order_type,new_order_trade_type,new_order_ex_type,new_order_p_low,new_order_p_high,new_order_price,new_order_quantity,new_order_gas,bids_after,asks_after");
+        },
+        _ => log_order_book!(format!("time,block_num,book_type,clearing_price,book_before,book_after,")),
+    }
+}
 
 
 

@@ -337,14 +337,15 @@ impl Simulation {
 
 			// use History to produce inference and decision data
 			let (decision_data, inference_data) = history.produce_data(pool);
-			// println!("data=> {:?}, inference=> {:?}", decision_data, inference_data);
+
 
 			// iterate through each maker and produce an order using the decision and inference data
 			for id in maker_ids {
+				// Wait until the maker_cold_start number of blocks has passed before entering orders to 
+				// allow more information to arrive from investors.
+				if block_num.read_count() < consts.maker_cold_start {break;}
 				// Only make new orders if the maker currently has none in the book
-				if house.get_player_order_count(&id) != 0 {
-					continue;
-				}
+				if house.get_player_order_count(&id) != 0 {continue;}
 				// Randomly choose whether the maker should try to trade this block
 				match Distributions::do_with_prob(consts.maker_enter_prob) {
 					true => {},
@@ -409,7 +410,9 @@ impl Simulation {
 		// The number of each type of maker in the simulation
 		let (num_agg, num_riska, num_rand) = self.house.get_maker_counts();
 
-		format!("{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},", fund_val, total_gas, avg_gas, total_tax, maker_profit, investor_profit, miner_profit, dead_weight, volatility, rmsd, agg_profit, riskav_profit, rand_profit, num_agg, num_riska, num_rand)
+		let (inv_welf, mkr_welf, min_welf) = self.calc_welfare();
+
+		format!("{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},", fund_val, total_gas, avg_gas, total_tax, maker_profit, investor_profit, miner_profit, dead_weight, volatility, rmsd, agg_profit, riskav_profit, rand_profit, num_agg, num_riska, num_rand, inv_welf, mkr_welf, min_welf)
 	}
 
 	// standard deviation of transaction price differences relative to the fundamental value
@@ -462,7 +465,6 @@ impl Simulation {
 				match &trade_results.cross_results {
 					Some(player_updates) => {
 						for p_u in player_updates {
-							println!("{:?}", p_u);
 							let p = p_u.price;
 							mean += p;
 							num += 1.0;
@@ -538,6 +540,7 @@ impl Simulation {
 	}
 
 	// Calculates the total profits final_bal - current_bal of each player
+	// init_player_s = a hashmap of the initial player balances and inventories
 	// returns (maker_profit, investor_profit, miner_profit)
 	pub fn calc_total_profit(&self, init_player_s: HashMap<String, (f64, f64)>) -> (f64, f64, f64) {
 		// Get final states
@@ -577,6 +580,97 @@ impl Simulation {
 		}
 
 		(maker_profit, investor_profit, miner_profit)
+	}
+
+
+	pub fn calc_welfare(&self) -> (f64, f64, f64){
+		println!("in calc welfare");
+		let history = &self.history;
+		let house = &self.house;
+		let txs = history.transactions.lock().unwrap();
+		let pool = history.mempool_data.lock().unwrap();
+
+		let mut inv_welf = 0.0;
+		let mut mkr_welf = 0.0;
+		let mut min_welf = 0.0;
+
+		println!("{:?}", pool);
+
+		println!("\n\n\n {:?}", txs);
+
+		// For each transcaction 
+		for tx in txs.iter() {
+			// Find whether these tx were with an investor, maker, or miner
+			let buyer_type = house.get_type(&tx.payer_id);
+			let seller_type = house.get_type(&tx.vol_filler_id);
+			let buyer_oid = tx.payer_order_id;
+			let seller_oid = tx.vol_filler_order_id;
+
+			let (bid_price, bid_plow, bid_phigh);
+
+			// Get the price parameters from the original bid order
+			match pool.get(&buyer_oid) {
+				Some((order, _time)) => {	
+					bid_price = order.price;
+					bid_plow = order.p_low;
+					bid_phigh = order.p_high;
+				},
+				None => continue,
+			}
+
+			let (ask_price, ask_plow, ask_phigh);
+			// Get the price parameters from the original ask order
+			match pool.get(&seller_oid) {
+				Some((order, _time)) => {	
+					ask_price = order.price;
+					ask_plow = order.p_low;
+					ask_phigh = order.p_high;
+				},
+				None => continue,
+			}
+
+			// Determine the amount of welfare gained from order
+			match self.consts.market_type {
+				MarketType::KLF => {
+					println!("lalalalal");
+					// Calculate the 
+					// inv_welf += welfare;
+				},
+				MarketType::FBA|MarketType::CDA => {
+					// Positive welfare if they bought at a lower price than they bid
+					let welfare = (bid_price - tx.price) * tx.volume;
+					println!("Bidder: {:?}{}, p_old: {}, p_tx: {}, welfare: {}", buyer_type, buyer_oid, bid_price, tx.price, welfare);
+					match buyer_type {
+						TraderT::Investor => {
+							inv_welf += welfare;
+						},
+						TraderT::Maker => {
+							mkr_welf += welfare;
+						},
+						TraderT::Miner => {
+							min_welf += welfare;
+						},
+					}
+					
+					// Positive welfare if they sold at a higher price than they asked
+					let welfare = (tx.price - ask_price) * tx.volume;
+					println!("Asker: {:?}{}, p_old: {}, p_tx: {}, welfare: {}", seller_type, seller_oid, ask_price, tx.price, welfare);
+					match seller_type {
+						TraderT::Investor => {
+							inv_welf += welfare;
+						},
+						TraderT::Maker => {
+							mkr_welf += welfare;
+						},
+						TraderT::Miner => {
+							min_welf += welfare;
+						},
+					}
+				},
+			}
+		}
+
+		(inv_welf, mkr_welf, min_welf)
 	}
 
 }

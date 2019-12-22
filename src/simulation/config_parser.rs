@@ -1,11 +1,8 @@
-use crate::simulation::simulation_config::{Distributions, Constants};
-use crate::simulation::simulation_config::{DistType, DistReason};
+use crate::simulation::simulation_config::{DistType, DistReason, Distributions, Constants};
 
 use std::error::Error;
 use serde::Deserialize;
 use csv;
-
-use log::Level;
 
 #[derive(Debug, Deserialize)]
 struct TempDist{
