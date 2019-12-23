@@ -1,4 +1,5 @@
 extern crate more_asserts;
+use flow_rs::players::Player;
 use flow_rs::blockchain::order_processor::*;
 use flow_rs::exchange::exchange_logic::Auction;
 use flow_rs::exchange::MarketType;
@@ -104,6 +105,273 @@ fn test_miner_frontrun() {
 	let _order = miner.strategic_front_run(best_bid_price, best_ask_price).unwrap();
 	assert_eq!(miner.frame.len(), n+1);
 }
+
+
+#[test]
+fn test_cda_cancel() {
+	// Setup pool and order books
+	let pool = Arc::new(common::setup_mem_pool());
+	let bids_book = Arc::new(common::setup_bids_book());
+	let asks_book = Arc::new(common::setup_asks_book());
+
+	let mut miner = common::setup_miner();
+	let market_type = MarketType::CDA;
+	
+	// investor
+	let mut bid1 = common::setup_bid_limit_order();
+	bid1.trader_id = format!("inv_bid");
+	let investor = common::setup_investor(format!("inv_bid"));
+	let inv_order_id = bid1.order_id;
+	investor.orders.lock().unwrap().push(bid1.clone());
+
+	// maker
+	let mut bid2 = common::setup_bid_limit_order();
+	bid2.trader_id = format!("mkr_bid");
+	let maker = common::setup_maker(format!("mkr_bid"));
+	let mkr_order_id = bid2.order_id;
+	maker.orders.lock().unwrap().push(bid2.clone());
+
+	// miner
+	let mut bid3 = common::setup_bid_limit_order();
+	bid3.trader_id = format!("min_bid");
+	let mut miner2 = common::setup_miner();
+	miner2.trader_id = format!("min_bid");
+	let min_order_id = bid3.order_id;
+	miner2.orders.lock().unwrap().push(bid3.clone());
+	
+	// register the players
+	let house = Arc::new(common::setup_clearing_house());
+	house.reg_investor(investor);
+	house.reg_maker(maker);
+	house.reg_miner(miner2);
+
+
+	let mut handles = Vec::new();
+	// Send all the orders in parallel to mempool
+	handles.push(OrderProcessor::conc_recv_order(bid1, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(bid2, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(bid3, Arc::clone(&pool)));
+
+	// Wait for the threads to finish
+	for h in handles.drain(..) {
+		h.join().unwrap();
+	}
+
+	// Create frame from the orders in mempool
+	miner.make_frame(Arc::clone(&pool), BLOCK_SIZE);
+
+	miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type);
+
+	// Only one ask should cross and fill, other will remain
+	assert_eq!(asks_book.len(), 0);
+	assert_eq!(bids_book.len(), 3);
+
+	let mut investor = house.get_player(format!("inv_bid")).unwrap();
+	let mut maker = house.get_player(format!("mkr_bid")).unwrap();
+	let mut miner2 = house.get_player(format!("min_bid")).unwrap();
+
+	let cancel1 = investor.cancel_order(inv_order_id).unwrap();
+	let cancel2 = maker.cancel_order(mkr_order_id).unwrap();
+	let cancel3 = miner2.cancel_order(min_order_id).unwrap();
+
+	let mut handles = Vec::new();
+	// Send all the orders in parallel to mempool
+	handles.push(OrderProcessor::conc_recv_order(cancel1, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(cancel2, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(cancel3, Arc::clone(&pool)));
+
+	// Wait for the threads to finish
+	for h in handles.drain(..) {
+		h.join().unwrap();
+	}
+
+	// Create frame from the orders in mempool
+	miner.make_frame(Arc::clone(&pool), BLOCK_SIZE);
+
+	miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type);
+
+	// Only one ask should cross and fill, other will remain
+	assert_eq!(asks_book.len(), 0);
+	assert_eq!(bids_book.len(), 0);
+}
+
+#[test]
+fn test_klf_cancel() {
+	// Setup pool and order books
+	let pool = Arc::new(common::setup_mem_pool());
+	let bids_book = Arc::new(common::setup_bids_book());
+	let asks_book = Arc::new(common::setup_asks_book());
+
+	let mut miner = common::setup_miner();
+	let market_type = MarketType::KLF;
+	
+	// investor
+	let mut bid1 = common::setup_bid_limit_order();
+	bid1.trader_id = format!("inv_bid");
+	let investor = common::setup_investor(format!("inv_bid"));
+	let inv_order_id = bid1.order_id;
+	investor.orders.lock().unwrap().push(bid1.clone());
+
+	// maker
+	let mut bid2 = common::setup_bid_limit_order();
+	bid2.trader_id = format!("mkr_bid");
+	let maker = common::setup_maker(format!("mkr_bid"));
+	let mkr_order_id = bid2.order_id;
+	maker.orders.lock().unwrap().push(bid2.clone());
+
+	// miner
+	let mut bid3 = common::setup_bid_limit_order();
+	bid3.trader_id = format!("min_bid");
+	let mut miner2 = common::setup_miner();
+	miner2.trader_id = format!("min_bid");
+	let min_order_id = bid3.order_id;
+	miner2.orders.lock().unwrap().push(bid3.clone());
+	
+	// register the players
+	let house = Arc::new(common::setup_clearing_house());
+	house.reg_investor(investor);
+	house.reg_maker(maker);
+	house.reg_miner(miner2);
+
+
+	let mut handles = Vec::new();
+	// Send all the orders in parallel to mempool
+	handles.push(OrderProcessor::conc_recv_order(bid1, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(bid2, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(bid3, Arc::clone(&pool)));
+
+	// Wait for the threads to finish
+	for h in handles.drain(..) {
+		h.join().unwrap();
+	}
+
+	// Create frame from the orders in mempool
+	miner.make_frame(Arc::clone(&pool), BLOCK_SIZE);
+
+	miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type);
+
+	// Only one ask should cross and fill, other will remain
+	assert_eq!(asks_book.len(), 0);
+	assert_eq!(bids_book.len(), 3);
+
+	let mut investor = house.get_player(format!("inv_bid")).unwrap();
+	let mut maker = house.get_player(format!("mkr_bid")).unwrap();
+	let mut miner2 = house.get_player(format!("min_bid")).unwrap();
+
+	let cancel1 = investor.cancel_order(inv_order_id).unwrap();
+	let cancel2 = maker.cancel_order(mkr_order_id).unwrap();
+	let cancel3 = miner2.cancel_order(min_order_id).unwrap();
+
+	let mut handles = Vec::new();
+	// Send all the orders in parallel to mempool
+	handles.push(OrderProcessor::conc_recv_order(cancel1, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(cancel2, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(cancel3, Arc::clone(&pool)));
+
+	// Wait for the threads to finish
+	for h in handles.drain(..) {
+		h.join().unwrap();
+	}
+
+	// Create frame from the orders in mempool
+	miner.make_frame(Arc::clone(&pool), BLOCK_SIZE);
+
+	miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type);
+
+	// Only one ask should cross and fill, other will remain
+	assert_eq!(asks_book.len(), 0);
+	assert_eq!(bids_book.len(), 0);
+}
+
+#[test]
+fn test_fba_cancel() {
+	// Setup pool and order books
+	let pool = Arc::new(common::setup_mem_pool());
+	let bids_book = Arc::new(common::setup_bids_book());
+	let asks_book = Arc::new(common::setup_asks_book());
+
+	let mut miner = common::setup_miner();
+	let market_type = MarketType::FBA;
+	
+	// investor
+	let mut bid1 = common::setup_bid_limit_order();
+	bid1.trader_id = format!("inv_bid");
+	let investor = common::setup_investor(format!("inv_bid"));
+	let inv_order_id = bid1.order_id;
+	investor.orders.lock().unwrap().push(bid1.clone());
+
+	// maker
+	let mut bid2 = common::setup_bid_limit_order();
+	bid2.trader_id = format!("mkr_bid");
+	let maker = common::setup_maker(format!("mkr_bid"));
+	let mkr_order_id = bid2.order_id;
+	maker.orders.lock().unwrap().push(bid2.clone());
+
+	// miner
+	let mut bid3 = common::setup_bid_limit_order();
+	bid3.trader_id = format!("min_bid");
+	let mut miner2 = common::setup_miner();
+	miner2.trader_id = format!("min_bid");
+	let min_order_id = bid3.order_id;
+	miner2.orders.lock().unwrap().push(bid3.clone());
+	
+	// register the players
+	let house = Arc::new(common::setup_clearing_house());
+	house.reg_investor(investor);
+	house.reg_maker(maker);
+	house.reg_miner(miner2);
+
+
+	let mut handles = Vec::new();
+	// Send all the orders in parallel to mempool
+	handles.push(OrderProcessor::conc_recv_order(bid1, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(bid2, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(bid3, Arc::clone(&pool)));
+
+	// Wait for the threads to finish
+	for h in handles.drain(..) {
+		h.join().unwrap();
+	}
+
+	// Create frame from the orders in mempool
+	miner.make_frame(Arc::clone(&pool), BLOCK_SIZE);
+
+	miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type);
+
+	// Only one ask should cross and fill, other will remain
+	assert_eq!(asks_book.len(), 0);
+	assert_eq!(bids_book.len(), 3);
+
+	let mut investor = house.get_player(format!("inv_bid")).unwrap();
+	let mut maker = house.get_player(format!("mkr_bid")).unwrap();
+	let mut miner2 = house.get_player(format!("min_bid")).unwrap();
+
+	let cancel1 = investor.cancel_order(inv_order_id).unwrap();
+	let cancel2 = maker.cancel_order(mkr_order_id).unwrap();
+	let cancel3 = miner2.cancel_order(min_order_id).unwrap();
+
+	let mut handles = Vec::new();
+	// Send all the orders in parallel to mempool
+	handles.push(OrderProcessor::conc_recv_order(cancel1, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(cancel2, Arc::clone(&pool)));
+	handles.push(OrderProcessor::conc_recv_order(cancel3, Arc::clone(&pool)));
+
+	// Wait for the threads to finish
+	for h in handles.drain(..) {
+		h.join().unwrap();
+	}
+
+	// Create frame from the orders in mempool
+	miner.make_frame(Arc::clone(&pool), BLOCK_SIZE);
+
+	miner.publish_frame(Arc::clone(&bids_book), Arc::clone(&asks_book), market_type);
+
+	// Only one ask should cross and fill, other will remain
+	assert_eq!(asks_book.len(), 0);
+	assert_eq!(bids_book.len(), 0);
+}
+
+
 
 
 // Tests that gas priority is correct and correct ask crosses with best bid

@@ -44,7 +44,7 @@ pub trait Player {
 
 	fn num_orders(&self) -> usize;
 
-	fn cancel_order(&mut self, o_id: u64) -> Result<(), &'static str>;
+	fn cancel_order(&mut self, o_id: u64) -> Result<Order, &'static str>;
 
 	fn update_order_vol(&mut self, o_id: u64, vol_to_add: f64) -> Result<(), &'static str>;
 

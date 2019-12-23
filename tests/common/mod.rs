@@ -8,7 +8,7 @@ use flow_rs::order::order_book::*;
 use flow_rs::utility::{gen_rand_f64, gen_rand_trader_id};
 use flow_rs::players::miner::Miner;
 use flow_rs::players::investor::Investor;
-use flow_rs::players::maker::Maker;
+use flow_rs::players::maker::{Maker, MakerT};
 use std::sync::Arc;
 
 use rand::{Rng, thread_rng};
@@ -290,6 +290,10 @@ pub fn setup_n_investors(n: usize) -> Vec<Investor>{
 
 pub fn setup_investor(trader_id: String) -> Investor {
 	Investor::new(trader_id)
+}
+
+pub fn setup_maker(trader_id: String) -> Maker {
+	Maker::new(trader_id, MakerT::Aggressive)
 }
 
 pub fn setup_n_makers(n: usize) -> Vec<Maker> {

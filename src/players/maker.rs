@@ -278,15 +278,18 @@ impl Player for Maker {
 		self.orders.lock().unwrap().len()
 	}
 
-	fn cancel_order(&mut self, o_id: u64) -> Result<(), &'static str> {
+	// Pops the order from the player's orders, modifies the OrderType to Cancel, 
+	// and returns the order to update the order book.
+	fn cancel_order(&mut self, o_id: u64) -> Result<Order, &'static str> {
 		// Get the lock on the player's orders
 		let mut orders = self.orders.lock().expect("couldn't acquire lock cancelling order");
 		// Find the index of the existing order using the order_id
 		let order_index: Option<usize> = orders.iter().position(|o| &o.order_id == &o_id);
 		
 		if let Some(i) = order_index {
-        	orders.remove(i);
-        	return Ok(());
+			let mut order = orders.remove(i);
+			order.order_type = OrderType::Cancel;
+			return Ok(order);
         } else {
         	return Err("ERROR: order not found to cancel");
         }

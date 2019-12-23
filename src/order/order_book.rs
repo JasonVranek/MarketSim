@@ -96,8 +96,13 @@ impl Book {
         }
 
 		// Update the best price 
-		let best_price = orders.last().unwrap().price;
-		self.update_best_price(best_price);
+        if let Some(last_order) = orders.last(){ 
+            let best_price = last_order.price;
+            self.update_best_price(best_price);
+        } else {
+            self.reset_best_price();
+        }
+
 
         Ok(())
     }
