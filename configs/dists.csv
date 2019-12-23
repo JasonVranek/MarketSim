@@ -1,7 +1,7 @@
 reason,v1,v2,scalar,dist_type,
 AsksCenter,101.0,2.0,1.0,Normal,
 BidsCenter,99.0,2.0,1.0,Normal,
-MinerFrameForm,10.0,50.0,1.0,Normal,
+MinerFrameForm,150.0,151.0,1.0,Uniform,
 InvestorVolume,0.99,1.0,1.0,Uniform,
 InvestorGas,0.0,1.0,1.0,Uniform,
 InvestorEnter,10.0,5.0,1.0,Normal,

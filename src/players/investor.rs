@@ -73,18 +73,45 @@ impl Player for Investor {
 		self.orders.lock().unwrap().len()
 	}
 
-	// Pops the order from the player's orders, modifies the OrderType to Cancel, 
-	// and returns the order to update the order book.
-	fn cancel_order(&mut self, o_id: u64) -> Result<Order, &'static str> {
+	fn get_enter_order_ids(&self) -> Vec<u64> {
+		let orders = self.orders.lock().expect("get_enter_order_ids");
+		let mut ids = Vec::new();
+		for o in orders.iter() {
+			if o.order_type == OrderType::Enter {
+				ids.push(o.order_id);
+			}
+		}
+		ids
+	}
+
+	// Creates a cancel order for the specified order id
+	fn gen_cancel_order(&mut self, o_id: u64) -> Result<Order, &'static str> {
+		// Get the lock on the player's orders
+		let orders = self.orders.lock().expect("couldn't acquire lock cancelling order");
+		// Find the index of the existing order using the order_id
+		let order_index: Option<usize> = orders.iter().position(|o| &o.order_id == &o_id);
+		
+		if let Some(i) = order_index {
+			let order = orders.get(i).expect("investor cancel_order");
+			let mut copied = order.clone();
+			copied.order_type = OrderType::Cancel;
+			return Ok(copied.clone());
+        } else {
+        	return Err("ERROR: order not found to cancel");
+        }
+	}
+
+
+	// Removes the cancel order from the player's active orders
+	fn cancel_order(&mut self, o_id: u64) -> Result<(), &'static str> {
 		// Get the lock on the player's orders
 		let mut orders = self.orders.lock().expect("couldn't acquire lock cancelling order");
 		// Find the index of the existing order using the order_id
 		let order_index: Option<usize> = orders.iter().position(|o| &o.order_id == &o_id);
 		
 		if let Some(i) = order_index {
-			let mut order = orders.remove(i);
-			order.order_type = OrderType::Cancel;
-			return Ok(order);
+			orders.remove(i);
+			return Ok(());
         } else {
         	return Err("ERROR: order not found to cancel");
         }

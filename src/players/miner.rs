@@ -56,23 +56,56 @@ impl Miner {
 	}
 
 	/// 'Publishes' the Miner's frame by sequentially executing the orders in the frame
+	// pub fn publish_frame(&mut self, bids: Arc<Book>, asks: Arc<Book>, m_t: MarketType) -> Option<Vec<TradeResults>> {
+	// 	println!("Publishing Frame: {:?}", self.frame);
+	// 	if let Some(results) = MemPoolProcessor::seq_process_orders(&mut self.frame, 
+	// 										Arc::clone(&bids), 
+	// 										Arc::clone(&asks), 
+	// 										m_t.clone()) {
+	// 		// TradeResults were received from processing orders, implying results from CDA market
+	// 		return Some(results);
+	// 	}
+	// 	// Run auction after book has been updated (CDA is prcessed in seq_process_orders)
+	// 	if let Some(auction_result) = Auction::run_auction(bids, asks, m_t) {
+	// 		// Received some results from FBA or KLF auction, convert to same vector output format as CDA results
+	// 		let mut v = Vec::<TradeResults>::new();
+	// 		v.push(auction_result);
+	// 		return Some(v);
+	// 	} 
+	// 	None
+	// }
+
 	pub fn publish_frame(&mut self, bids: Arc<Book>, asks: Arc<Book>, m_t: MarketType) -> Option<Vec<TradeResults>> {
 		println!("Publishing Frame: {:?}", self.frame);
-		if let Some(results) = MemPoolProcessor::seq_process_orders(&mut self.frame, 
+		// The results from processing the orders in sequential order
+		// For CDA: Cancels, Transactions
+		// For FBA & KLF: Cancels,
+		let process_results: Option<Vec<TradeResults>> = MemPoolProcessor::seq_process_orders(&mut self.frame, 
 											Arc::clone(&bids), 
 											Arc::clone(&asks), 
-											m_t.clone()) {
-			// TradeResults were received from processing orders, implying results from CDA market
-			return Some(results);
+											m_t.clone());
+
+		// Don't run end-of-batch auction
+
+		if m_t == MarketType::CDA {
+			return process_results;
 		}
-		// Run auction after book has been updated (CDA is prcessed in seq_process_orders)
 		if let Some(auction_result) = Auction::run_auction(bids, asks, m_t) {
-			// Received some results from FBA or KLF auction, convert to same vector output format as CDA results
-			let mut v = Vec::<TradeResults>::new();
-			v.push(auction_result);
-			return Some(v);
-		} 
-		None
+			// Received some results from FBA or KLF auction, merge with the process_results
+			// Option<TradeResults>
+			if let Some(mut unwrapped_process_results) = process_results {
+				unwrapped_process_results.push(auction_result);
+				Some(unwrapped_process_results)
+			} else {
+				// There were no process results so convert to proper output
+				let mut v = Vec::<TradeResults>::new();
+				v.push(auction_result);
+				return Some(v);
+			}
+			
+		} else {
+			return process_results;
+		}
 	}
 
 	// Selects a random order from the frame and appends an identical order with higher block priority
@@ -232,31 +265,77 @@ impl Player for Miner {
 		self.orders.lock().unwrap().len()
 	}
 
-	// Pops the order from the player's orders, modifies the OrderType to Cancel, 
-	// and returns the order to update the order book.
-	fn cancel_order(&mut self, o_id: u64) -> Result<Order, &'static str> {
+	fn get_enter_order_ids(&self) -> Vec<u64> {
+		let orders = self.orders.lock().expect("get_enter_order_ids");
+		let mut ids = Vec::new();
+		for o in orders.iter() {
+			if o.order_type == OrderType::Enter {
+				ids.push(o.order_id);
+			}
+		}
+		ids
+	}
+
+	// Creates a cancel order for the specified order id
+	fn gen_cancel_order(&mut self, o_id: u64) -> Result<Order, &'static str> {
 		// Get the lock on the player's orders
-		let mut orders = self.orders.lock().expect("couldn't acquire lock cancelling order");
+		let orders = self.orders.lock().expect("couldn't acquire lock cancelling order");
 		// Find the index of the existing order using the order_id
 		let order_index: Option<usize> = orders.iter().position(|o| &o.order_id == &o_id);
 		
 		if let Some(i) = order_index {
-			let mut order = orders.remove(i);
-			order.order_type = OrderType::Cancel;
-			return Ok(order);
+			let order = orders.get(i).expect("investor cancel_order");
+			let mut copied = order.clone();
+			copied.order_type = OrderType::Cancel;
+			return Ok(copied.clone());
         } else {
         	return Err("ERROR: order not found to cancel");
         }
 	}
 
-	fn update_order_vol(&mut self, o_id: u64, vol_to_add: f64) -> Result<(), &'static str> {
+
+	// Removes the cancel order from the player's active orders
+	fn cancel_order(&mut self, o_id: u64) -> Result<(), &'static str> {
 		// Get the lock on the player's orders
 		let mut orders = self.orders.lock().expect("couldn't acquire lock cancelling order");
 		// Find the index of the existing order using the order_id
 		let order_index: Option<usize> = orders.iter().position(|o| &o.order_id == &o_id);
 		
 		if let Some(i) = order_index {
+			orders.remove(i);
+			return Ok(());
+        } else {
+        	return Err("ERROR: order not found to cancel");
+        }
+	}
+	
+	// fn update_order_vol(&mut self, o_id: u64, vol_to_add: f64) -> Result<(), &'static str> {
+	// 	// Get the lock on the player's orders
+	// 	let mut orders = self.orders.lock().expect("couldn't acquire lock cancelling order");
+	// 	// Find the index of the existing order using the order_id
+	// 	let order_index: Option<usize> = orders.iter().position(|o| &o.order_id == &o_id);
+		
+	// 	if let Some(i) = order_index {
+ //        	orders[i].quantity += vol_to_add;
+ //        	return Ok(());
+ //        } else {
+ //        	return Err("ERROR: order not found to cancel");
+ //        }
+	// }
+
+	// Updates the order's volume and removes it if the vol <= 0
+	fn update_order_vol(&mut self, o_id: u64, vol_to_add: f64) -> Result<(), &'static str> {
+		// Get the lock on the player's orders
+		let mut orders = self.orders.lock().expect("couldn't acquire lock on orders");
+		// Find the index of the existing order using the order_id
+		let order_index: Option<usize> = orders.iter().position(|o| &o.order_id == &o_id);
+		
+		if let Some(i) = order_index {
         	orders[i].quantity += vol_to_add;
+        	// println!("new quantity: {}", orders[i].quantity);
+        	if orders[i].quantity <= 0.0 {
+        		orders.remove(i);
+        	}
         	return Ok(());
         } else {
         	return Err("ERROR: order not found to cancel");

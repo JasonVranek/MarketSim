@@ -300,7 +300,6 @@ impl Simulation {
 
 	pub fn maker_task(dists: Distributions, house: Arc<ClearingHouse>, mempool: Arc<MemPool>, history: Arc<History>, block_num: Arc<BlockNum>, consts: Constants) -> Task {
 		Task::rpt_task(move || {
-
 			// Check if the simulation is ending
 			if block_num.read_count() > consts.num_blocks {
 				// exit the thread
@@ -308,65 +307,84 @@ impl Simulation {
 				// std::process::exit(1)
 			}
 
-			// Select all Makers
-			let maker_ids = house.get_filtered_ids(TraderT::Maker);
+			// Wait until the maker_cold_start number of blocks has passed before entering orders to 
+			// allow more information to arrive from investors.
+			if block_num.read_count() > consts.maker_cold_start {
+				// Select all Makers
+				let maker_ids = house.get_filtered_ids(TraderT::Maker);
 
-			// Copy the current mempool
-			let pool;
-			{
-				pool = mempool.items.lock().expect("maker task pool").clone();
-			}
-
-			// use History to produce inference and decision data
-			let (decision_data, inference_data) = history.produce_data(pool);
-
-
-			// iterate through each maker and produce an order using the decision and inference data
-			for id in maker_ids {
-				// Wait until the maker_cold_start number of blocks has passed before entering orders to 
-				// allow more information to arrive from investors.
-				if block_num.read_count() < consts.maker_cold_start {break;}
-				// Only make new orders if the maker currently has none in the book
-				if house.get_player_order_count(&id).expect("get_player_order_count") != 0 {continue;}
-				// Randomly choose whether the maker should try to trade this block
-				match Distributions::do_with_prob(consts.maker_enter_prob) {
-					true => {},
-					false => continue,	// Don't trade this batch
+				// Copy the current mempool
+				let pool;
+				{
+					pool = mempool.items.lock().expect("maker task pool").clone();
 				}
 
-				// Each maker interprets the data to produce their pair of orders based on their type 
-				if let Some((bid_order, ask_order)) = house.maker_new_orders(id.clone(), &decision_data, &inference_data, &dists, &consts) {
-					// Add the order to the ClearingHouse which will register to the correct maker
-					match house.new_order(bid_order.clone()) {
-						Ok(()) => {
-							// Add the bid_order to the simulation's history
-							history.mempool_order(bid_order.clone());
-							// Send the bid_order to the MemPool
-							OrderProcessor::conc_recv_order(bid_order, Arc::clone(&mempool)).join().expect("Failed to send maker bid order");
-							
-						},
-						Err(e) => {
-							// If we failed to add the order to the player, don't send it to mempool
-							println!("{:?}", e);
-						},
+				// use History to produce inference and decision data
+				let (decision_data, inference_data) = history.produce_data(pool);
+
+				// iterate through each maker and produce an order using the decision and inference data
+				for id in maker_ids {
+					// If the maker has orders in the book, cancel and re-enter with some probabilty
+					if house.get_player_order_count(&id).expect("get_player_order_count") != 0 {
+						// Randomly choose whether the maker should try cancel and re-enter
+						match Distributions::do_with_prob(consts.maker_update_prob) {
+							true => {},
+							false => continue,	// Don't trade this batch
+						}
+
+						// Cancel the maker's current orders
+						if let Ok(cancel_orders) = house.cancel_all_orders(id.clone()) {
+							for order in cancel_orders {
+								println!("Cancelling: {}:{},{}\n", id, order.order_id, order.price);
+								// Add the cancel order to the simulation's history
+								history.mempool_order(order.clone());
+								// Send the cancel order to the MemPool
+								OrderProcessor::conc_recv_order(order, Arc::clone(&mempool)).join().expect("Failed to send maker bid order");
+							}
+						}
+					}
+					
+					// Randomly choose whether the maker should try and enter a pair of orders
+					match Distributions::do_with_prob(consts.maker_enter_prob) {
+						true => {},
+						false => continue,	// Don't trade this batch
 					}
 
-					// Add the order to the ClearingHouse which will register to the correct maker
-					match house.new_order(ask_order.clone()) {
-						Ok(()) => {
-							// println!("{:?}", ask_order);
-							// Add the ask_order to the simulation's history
-							history.mempool_order(ask_order.clone());
-							// Send the ask_order to the MemPool
-							OrderProcessor::conc_recv_order(ask_order, Arc::clone(&mempool)).join().expect("Failed to send maker ask order");
-							
-						},
-						Err(e) => {
-							// If we failed to add the ask_order to the player, don't send it to mempool
-							println!("{:?}", e);
-						},
-					}
-				}	
+					// Each maker interprets the data to produce their pair of new orders based on their type 
+					if let Some((bid_order, ask_order)) = house.maker_new_orders(id.clone(), &decision_data, &inference_data, &dists, &consts) {
+						// Add the order to the ClearingHouse which will register to the correct maker
+						match house.new_order(bid_order.clone()) {
+							Ok(()) => {
+								println!("Entering: {}:{},{}\n", id, bid_order.order_id, bid_order.price);
+								// Add the bid_order to the simulation's history
+								history.mempool_order(bid_order.clone());
+								// Send the bid_order to the MemPool
+								OrderProcessor::conc_recv_order(bid_order, Arc::clone(&mempool)).join().expect("Failed to send maker bid order");
+								
+							},
+							Err(e) => {
+								// If we failed to add the order to the player, don't send it to mempool
+								println!("{:?}", e);
+							},
+						}
+
+						// Add the order to the ClearingHouse which will register to the correct maker
+						match house.new_order(ask_order.clone()) {
+							Ok(()) => {
+								println!("Entering: {}:{},{}\n", id, ask_order.order_id, ask_order.price);
+								// Add the ask_order to the simulation's history
+								history.mempool_order(ask_order.clone());
+								// Send the ask_order to the MemPool
+								OrderProcessor::conc_recv_order(ask_order, Arc::clone(&mempool)).join().expect("Failed to send maker ask order");
+								
+							},
+							Err(e) => {
+								// If we failed to add the ask_order to the player, don't send it to mempool
+								println!("{:?}", e);
+							},
+						}
+					}	
+				}
 			}
 			// Wait until the next batch + maker propagation delay to rerun the maker task
 		}, consts.batch_interval + consts.maker_prop_delay)

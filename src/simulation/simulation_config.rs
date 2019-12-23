@@ -21,12 +21,13 @@ pub struct Constants {
 	pub max_held_inventory: f64,
 	pub maker_inv_tax: f64,
 	pub maker_cold_start: u64,	// Amount of blocks to wait before makers start submitting orders
+	pub maker_update_prob: f64,
 }
 
 impl Constants {
 	pub fn new(b_i: u64, n_i: u64, n_m: u64, b_s: usize, n_b: u64, 
 		m_t: MarketType, f_r: f64, f_o_o: f64, m_p_d: u64, t_s: f64, 
-		mep: f64, mhi: f64, mit: f64, mcs: u64) -> Constants {
+		mep: f64, mhi: f64, mit: f64, mcs: u64, mup: f64) -> Constants {
 		Constants {
 			batch_interval: b_i,
 			num_investors: n_i,
@@ -41,13 +42,14 @@ impl Constants {
 			maker_enter_prob: mep,
 			max_held_inventory: mhi,
 			maker_inv_tax: mit,
-			maker_cold_start: mcs
+			maker_cold_start: mcs,
+			maker_update_prob: mup,
 		}
 	}
 
 	pub fn log(&self) -> String {
-		let h = format!("\nbatch_interval,num_investors,num_makers,block_size,num_blocks,market_type,front_run_perc,flow_order_offset,maker_prop_delay,maker_base_spread,maker_enter_prob,max_held_inventory,maker_inv_tax,maker_cold_start,");
-		let d = format!("{},{},{},{},{},{:?},{},{},{},{},{},{},{},{},",
+		let h = format!("\nbatch_interval,num_investors,num_makers,block_size,num_blocks,market_type,front_run_perc,flow_order_offset,maker_prop_delay,maker_base_spread,maker_enter_prob,max_held_inventory,maker_inv_tax,maker_cold_start,maker_update_prob,");
+		let d = format!("{},{},{},{},{},{:?},{},{},{},{},{},{},{},{},{},",
 			self.batch_interval,
 			self.num_investors,
 			self.num_makers,
@@ -61,7 +63,8 @@ impl Constants {
 			self.maker_enter_prob,
 			self.max_held_inventory,
 			self.maker_inv_tax,
-			self.maker_cold_start);
+			self.maker_cold_start,
+			self.maker_update_prob);
 		format!("{}\n{}", h, d)
 	}
 

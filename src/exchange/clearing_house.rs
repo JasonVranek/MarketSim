@@ -86,7 +86,7 @@ impl ClearingHouse {
 		}
 	}
 
-	// Gets the maker and 
+	// Gets the maker and generates a pair of orders based on supplied parameters 
 	pub fn maker_new_orders(&self, id: String, data: &PriorData, inference: &LikelihoodStats, dists: &Distributions, consts: &Constants) -> Option<(Order, Order)>{
 		let players = self.players.lock().unwrap();
 		match players.get(&id) {
@@ -106,6 +106,29 @@ impl ClearingHouse {
 				return None;
 			}
 		} 
+	}
+
+	// Gets the maker and cancels all of their enter orders in the clearing house
+	// returns a vector of all of their orders with the update OrderType = Cancel
+	// to be submitted to the mempool -> order books
+	pub fn cancel_all_orders(&self, id: String) -> Result<Vec<Order>, ()> {
+		let mut players = self.players.lock().unwrap();
+		let mut orders = Vec::new();
+		match players.get_mut(&id) {
+			Some(player) => {
+				let order_ids = player.get_enter_order_ids();
+				for o_id in order_ids {
+					if let Ok(cancel_order) = player.gen_cancel_order(o_id) {
+						orders.push(cancel_order);
+					};
+				} 
+				Ok(orders)
+			},
+			None => {
+				println!("Couldn't get player to cancel orders: {}", id);
+				return Err(());
+			}
+		}
 	}
 
 	pub fn get_player_order_count(&self, id: &String) -> Result<usize, ()> {
@@ -262,6 +285,12 @@ impl ClearingHouse {
 			None => return,
 			Some(player_updates) => {
 				for pu in player_updates {
+					if pu.cancel == true {
+						// Cancel the player's order in the clearing house
+						self.cancel_player_order(pu.payer_id, pu.payer_order_id).expect("cda_cross_update...");
+						continue;
+					}
+
 					// Update bidder: -bal, +inv
 					let bidder_id = pu.payer_id;
 					let volume = pu.volume;
@@ -302,6 +331,11 @@ impl ClearingHouse {
 			None => return,
 			Some(player_updates) => {
 				for pu in player_updates {
+					if pu.cancel == true {
+						// Cancel the player's order in the clearing house
+						self.cancel_player_order(pu.payer_id, pu.payer_order_id).expect("fba_cross_update...");
+						continue;
+					}
 					// Update bidder: -bal, +inv
 					let bidder_id = pu.payer_id;
 					let volume = pu.volume;
@@ -344,6 +378,11 @@ impl ClearingHouse {
 				if let Some(player_updates) = results.cross_results {
 					let id_check = format!("N/A");
 					for pu in player_updates {
+						if pu.cancel == true {
+						// Cancel the player's order in the clearing house
+						self.cancel_player_order(pu.payer_id, pu.payer_order_id).expect("klf_cross_update...");
+						continue;
+					}
 						let volume = pu.volume;
 						let payment = pu.price * volume;
 

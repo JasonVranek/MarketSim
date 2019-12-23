@@ -27,11 +27,12 @@ pub struct PlayerUpdate {
 	pub vol_filler_order_id: u64,
 	pub price: f64,
 	pub volume: f64,
+	pub cancel: bool,
 }
 
 impl PlayerUpdate {
 	pub fn new(payer_id: String, vol_filler_id: String, payer_order_id: u64, 
-		vol_filler_order_id: u64, price: f64, volume: f64) -> PlayerUpdate {
+		vol_filler_order_id: u64, price: f64, volume: f64, cancel: bool) -> PlayerUpdate {
 		PlayerUpdate {
 			payer_id,
 			vol_filler_id,
@@ -39,6 +40,7 @@ impl PlayerUpdate {
 			vol_filler_order_id,
 			price,
 			volume,
+			cancel,
 		}
 	}
 }
@@ -119,6 +121,7 @@ impl Auction {
 							best_ask.order_id,
 							best_ask.price,
 							new_bid.quantity,
+							false
 							));
 
 						// Return the best ask to the book
@@ -141,6 +144,7 @@ impl Auction {
 							best_ask.order_id,
 							best_ask.price,
 							best_ask.quantity,
+							false
 							));
 						
 						// Update the best ask price 
@@ -172,6 +176,7 @@ impl Auction {
 							best_ask.order_id,
 							best_ask.price,
 							new_bid.quantity,
+							false
 							));
 
 						// Update the best ask price 
@@ -238,6 +243,7 @@ impl Auction {
 							new_ask.order_id,
 							best_bid.price,
 							new_ask.quantity,
+							false
 							));
 
 						// Return the best bid to the book
@@ -260,6 +266,7 @@ impl Auction {
 							new_ask.order_id,
 							best_bid.price,
 							best_bid.quantity,
+							false
 							));
 						
 						// Update the best bid price 
@@ -291,6 +298,7 @@ impl Auction {
 							new_ask.order_id,
 							best_bid.price,
 							new_ask.quantity,
+							false,
 							));
 						
 						// Update the best bid price 
@@ -495,7 +503,7 @@ impl Auction {
 											  cur_ask.trader_id.clone(), 
 											  cur_bid.order_id, 
 											  cur_ask.order_id.clone(), 
-											  cp, trade_amount));
+											  cp, trade_amount, false));
 							// Cancel the bid from the book
 							cancel_bids.push(cur_bid.order_id);
 							// Return the ask for next loop iteration
@@ -513,7 +521,7 @@ impl Auction {
 											  cur_ask.trader_id.clone(), 
 											  cur_bid.order_id, 
 											  cur_ask.order_id, 
-											  cp, trade_amount));
+											  cp, trade_amount, false));
 							// Cancel ask order since was filled (Simply don't add it back to the book...)
 							// This bid's interest is not fully filled so return it to be used again:
 							bids.push_to_end(cur_bid).expect("Couldn't push order");
@@ -530,7 +538,7 @@ impl Auction {
 											  cur_ask.trader_id.clone(), 
 											  cur_bid.order_id, 
 											  cur_ask.order_id, 
-											  cp, trade_amount));
+											  cp, trade_amount,false));
 
 							// Cancel bid order from bids books
 							cancel_bids.push(cur_bid.order_id);
@@ -686,7 +694,8 @@ impl Auction {
 							bid.order_id,
 							0,				// No filler order -> assuming trade with ex (update later)
 							clearing_price,
-							v
+							v,
+							false
 						));
 					// Modify the order in the order book
 					bid.quantity -= v;
@@ -710,7 +719,8 @@ impl Auction {
 							0,				// No filler order -> assuming trade with ex (update later)
 							ask.order_id,
 							clearing_price,
-							v
+							v,
+							false
 						));
 					// Modify the order in the order book
 					ask.quantity -= v;

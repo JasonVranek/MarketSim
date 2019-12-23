@@ -2,7 +2,7 @@ use crate::order::order::{Order, OrderType, TradeType};
 use crate::blockchain::mem_pool::MemPool;
 use crate::order::order_book::Book;
 use crate::controller::{Task, State};
-use crate::exchange::exchange_logic::{Auction, TradeResults};
+use crate::exchange::exchange_logic::{Auction, TradeResults, PlayerUpdate};
 use crate::exchange::MarketType;	
 
 use std::thread;
@@ -54,7 +54,11 @@ impl MemPoolProcessor {
 					}
 				}
 				OrderType::Update => MemPoolProcessor::seq_process_update(Arc::clone(&bids), Arc::clone(&asks), order, _m_t.clone()),
-				OrderType::Cancel => MemPoolProcessor::seq_process_cancel(Arc::clone(&bids), Arc::clone(&asks), order, _m_t.clone()),
+				OrderType::Cancel => {
+					if let Some(result) = MemPoolProcessor::seq_process_cancel(Arc::clone(&bids), Arc::clone(&asks), order, _m_t.clone()) {
+						results.push(result);
+					}
+				}
 			};
 		}
 		if results.len() == 0 {
@@ -164,11 +168,15 @@ impl MemPoolProcessor {
 	}
 
 	// Cancels the order living in the Bids or Asks Book
-	fn seq_process_cancel(bids: Arc<Book>, asks: Arc<Book>, order: Order, _m_t: MarketType) {
+	fn seq_process_cancel(bids: Arc<Book>, asks: Arc<Book>, order: Order, m_t: MarketType) -> Option<TradeResults> {
+		// select bids or asks book 
 		let book = match order.trade_type {
 			TradeType::Ask => asks,
 			TradeType::Bid => bids,
 		};
+
+		let trader_id = order.trader_id.clone();
+		let order_id = order.order_id;
 
 		// If the cancel fails bubble error up.
 		match book.cancel_order(order) {
@@ -178,6 +186,22 @@ impl MemPoolProcessor {
     			// TODO send an error response over TCP
     		}
     	}
+    	
+    	// Once cancelled in order book, cancel in the clearing house 
+    	// Store a PlayerUpdate with Cancel set to true, in vec form for TradeResults compatibility
+		let updates = vec![PlayerUpdate::new( 
+						trader_id.clone(),
+						trader_id,
+						order_id,
+						order_id,
+						-9.99,
+						-9.99,
+						true       // Cancel = true 
+					)];
+
+
+    	// make TradeResult for compatible return type with seq_process_enter
+    	Some(TradeResults::new(m_t, None, 0.0, 0.0, Some(updates)))
 	}
 
 	// Checks if the new order crosses. Modifies orders in book then calculates new max price

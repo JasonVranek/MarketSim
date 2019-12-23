@@ -1,7 +1,7 @@
 pub mod exchange_logic;
 pub mod clearing_house;
 
-#[derive(Debug, Copy, Deserialize)]
+#[derive(Debug, Copy, Deserialize, PartialEq)]
 pub enum MarketType {
 	CDA,
 	FBA,
