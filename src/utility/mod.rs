@@ -77,6 +77,23 @@ pub fn gen_trader_id(tt: TraderT) -> String {
 }
 
 
+/// Generate a trader id for a specific type of trader
+pub fn gen_rand_trader_id() -> String {
+    let mut rng = thread_rng();
+    let id: String = iter::repeat(())
+        .map(|()| rng.sample(Alphanumeric))
+        .take(10)
+        .collect();
+
+
+    match rng.gen_range(0, 3) {
+        0 => format!("MKR{}", id),
+        1 => format!("INV{}", id),
+        _ => format!("MIN{}", id),
+    }
+}
+
+
 
 pub fn setup_logging(file_name: &str, enable_log: bool) -> log4rs::Handle {
     let stdout = ConsoleAppender::builder().build();

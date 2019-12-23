@@ -73,7 +73,8 @@ pub struct Order {
 	pub p_low: f64,				
 	pub p_high: f64,
 	pub price: f64,
-	pub quantity: f64,			
+	pub quantity: f64,
+	pub u_max: f64,			
 	pub gas: f64,
 }
 
@@ -89,6 +90,7 @@ impl Clone for Order {
 			p_high: self.p_high.clone(),
 			price: self.price.clone(),
 			quantity: self.quantity.clone(),
+			u_max: self.u_max.clone(),
 			gas: self.gas.clone(),
 		}
 	}
@@ -96,7 +98,7 @@ impl Clone for Order {
 
 impl Order {
     pub fn new(t_id: String, o_t: OrderType, t_t: TradeType, 
-    		   e_t: ExchangeType, p_l: f64, p_h: f64, p: f64, q: f64, gas: f64) -> Order
+    		   e_t: ExchangeType, p_l: f64, p_h: f64, p: f64, q: f64, u: f64, gas: f64) -> Order
     {
     	Order {
     		trader_id: t_id,	
@@ -108,6 +110,7 @@ impl Order {
 			p_high: p_h,
 			price: p,				
 			quantity: q,	
+			u_max: u,
 			gas: gas,
     	}
     }

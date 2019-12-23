@@ -9,9 +9,9 @@ use flow_rs::utility::{gen_rand_f64, gen_rand_trader_id};
 use flow_rs::players::miner::Miner;
 use flow_rs::players::investor::Investor;
 use flow_rs::players::maker::Maker;
-use flow_rs::simulation::trader_behavior::*;
 use std::sync::Arc;
-use rand::Rng;
+
+use rand::{Rng, thread_rng};
 
 pub fn setup() {
 	// setup code specific to lib's tests go here
@@ -153,6 +153,76 @@ pub fn rand_coef_vector() -> Vec<f64> {
 	}).collect();
 	coefs
 }
+
+/// Generates a random number of Bid and Ask orders all of OrderType::Enter
+/// and returns them in a vector.
+pub fn rand_enters(upper: u64) -> Vec<Order> {
+	let mut rng = thread_rng();
+	let mut orders = Vec::<Order>::new();
+
+	for _ in 0..rng.gen_range(0, upper) {
+		orders.push(rand_bid_limit_enter());
+	}
+
+	for _ in 0..rng.gen_range(0, upper) {
+		orders.push(rand_ask_limit_enter());
+	}
+	orders
+}
+
+/// Generates a random Ask order of OrderType::Enter
+pub fn rand_ask_limit_enter() -> Order {
+	let (price, quantity) = gen_limit_order();			//TODOOO LOOK AT THIS AGAIN
+	Order::new(
+		gen_rand_trader_id(),
+		OrderType::Enter,
+		TradeType::Ask,
+		ExchangeType::LimitOrder,
+		0.0,
+		0.0,	
+		price,
+		quantity,
+		0.5,
+	)
+}
+
+/// Generates a random Bid order of OrderType::Enter
+pub fn rand_bid_limit_enter() -> Order {
+	let (price, quantity) = gen_limit_order();				//TODOOO LOOK AT THIS AGAIN
+	Order::new(
+		gen_rand_trader_id(),
+		OrderType::Enter,
+		TradeType::Bid,
+		ExchangeType::LimitOrder,
+		0.0,
+		0.0,
+		price,
+		quantity,
+		0.5,
+	)
+}
+
+/// Randomizes the fields of an order but retains trade_id and trade_type
+pub fn rand_update_order(old: &Order) -> Order {
+
+    let mut new = match old.trade_type {
+    	TradeType::Bid => rand_bid_limit_enter(),
+    	TradeType::Ask => rand_ask_limit_enter(),
+    };
+    new.order_type = OrderType::Update;
+    new.trader_id = old.trader_id.clone();
+    new
+}
+
+/// Create a random price and quantity
+pub fn gen_limit_order() -> (f64, f64) {
+	let mut rng = thread_rng();
+	let p: f64 = rng.gen_range(90.0, 110.0);
+	let q: f64 = rng.gen_range(0.0, 10.0);
+	(p, q)
+}
+
+
 
 pub fn n_bid_enters(n: usize) -> Vec<Order> {
 	let mut bids = Vec::<Order>::new();

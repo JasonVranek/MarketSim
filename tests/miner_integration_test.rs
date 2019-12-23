@@ -99,7 +99,9 @@ fn test_miner_frontrun() {
 	assert_eq!(pool.length(), n);
 	pool.sort_by_gas();
 	miner.make_frame(Arc::clone(&pool), BLOCK_SIZE);
-	let _order = miner.front_run().unwrap();
+	let best_bid_price = 0.0;
+	let best_ask_price = 9999999.0;
+	let _order = miner.strategic_front_run(best_bid_price, best_ask_price).unwrap();
 	assert_eq!(miner.frame.len(), n+1);
 }
 
