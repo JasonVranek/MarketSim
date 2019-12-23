@@ -558,35 +558,27 @@ impl Auction {
 
 	/// Helper function for Flow Order clearing price calculation: bs_cross
 	/// Iterate over each order in parallel and compute the aggregate supply and
-	/// demand using the order's p_low, p_high, and quantity (u_max).
+	/// demand at a certain price.
 	pub fn calc_aggs(p: f64, bids: Arc<Book>, asks: Arc<Book>) -> (f64, f64) {
 		let bids = bids.orders.lock().expect("ERROR: No bids book");
 		let asks = asks.orders.lock().expect("ERROR: No asks book");
 
+		// Calculate cummulative demand schedule trade volume
 		let agg_demand: f64 = bids.par_iter()
 		    .map(|order| {
-		    	if p <= order.p_low {
-		    		order.quantity
-		    	} else if p > order.p_high {
-		    		0.0
-		    	} else {
-		    		order.calc_flow_demand(p)
-		    	}
+	    		order.calc_flow_demand(p)
 		    }).sum();
 
+
+		// Calculate cummulative supply schedule trade volume
 		let agg_supply: f64 = asks.par_iter()
 		    .map(|order| {
-		    	if p < order.p_low {
-		    		0.0
-		    	} else if p >= order.p_high {
-		    		order.quantity
-		    	} else {
-		    		order.calc_flow_supply(p)
-		    	}
+	    		order.calc_flow_supply(p)
 		    }).sum();
 
 		(agg_demand, agg_supply)
 	}
+
 
 	/// **KLF function**
 	/// Calculates the market clearing price from the bids and asks books. Uses a 

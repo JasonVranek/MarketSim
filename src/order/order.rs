@@ -129,13 +129,26 @@ impl Order {
     	assert_eq!(self.trade_type, TradeType::Ask);
     	let p_low = self.p_low;
     	let p_high = self.p_high;
-    	let u = self.quantity;
+    	let u_max = self.u_max;
+    	let q_max = self.quantity;
     	if price < p_low {
-	    		0.0
+			// Don't trade if price is lower than min willingness to sell
+    		0.0
     	} else if price >= p_high {
-    		u
+    		if q_max < u_max {
+    			// Don't trade more than q_max 
+    			return q_max;
+    		} 
+    		// Trade at max rate if p >= p_high
+    		u_max
     	} else {
-    		u + ((price - p_high) / (p_high - p_low)) * u
+    		// The price fell p_low < price < p_high
+    		let trade_vol = u_max + ((price - p_high) / (p_high - p_low)) * u_max;
+    		if trade_vol > q_max {
+    			// Saturate to q_max if trade_vol will exceed q_max
+    			return q_max;
+    		}
+    		trade_vol
     	}
     }
 
@@ -146,18 +159,31 @@ impl Order {
     	assert_eq!(self.trade_type, TradeType::Bid);
     	let p_low = self.p_low;
     	let p_high = self.p_high;
-    	let u = self.quantity;
+    	let u_max = self.u_max;
+    	let q_max = self.quantity;
     	if price <= p_low {
-    		u
+    		if q_max < u_max {
+    			// Don't trade more than q_max
+    			return q_max;
+    		}
+    		// Trade at max rate if p <= p_low
+    		u_max
     	} else if price > p_high {
+    		// Don't trade if price is higher than max willingness to buy
     		0.0
     	} else {
-    		u * ((p_high - price) / (p_high - p_low))
+    		// The price fell p_low < price < p_high
+    		let trade_vol = u_max * ((p_high - price) / (p_high - p_low));
+    		if trade_vol > q_max {
+    			// Saturate to q_max if trade_vol will exceed q_max
+    			return q_max;
+    		}
+    		trade_vol
     	}
     }
 
     pub fn order_to_csv(order: &Order) -> String {
-    	format!("{:?},{},{},{:?},{:?},{:?},{},{},{},{},{},",
+    	format!("{:?},{},{},{:?},{:?},{:?},{},{},{},{},{},{},",
     		get_time(),
     		order.trader_id.clone(),
     		order.order_id,
@@ -168,6 +194,7 @@ impl Order {
     		order.p_high,
     		order.price,
     		order.quantity,
+    		order.u_max,
     		order.gas)
     }
 }
@@ -187,6 +214,7 @@ mod tests {
 			0.0,
 			0.0,
 			50.0,
+			500.0,
 			500.0,
 			0.05,
 		);
@@ -211,6 +239,7 @@ mod tests {
 			101.0,
 			50.0,
 			500.0,
+			500.0,
 			0.05,
 		);
 
@@ -221,6 +250,7 @@ mod tests {
 		assert_eq!(order.p_low, 99.0);
 		assert_eq!(order.p_high, 101.0);
 		assert_eq!(order.quantity, 500.0);
+		assert_eq!(order.u_max, 500.0);
 		assert_eq!(order.gas, 0.05);
 	}
 
@@ -235,6 +265,7 @@ mod tests {
 			100.0,
 			50.0,
 			500.0,
+			500.0,
 			0.05,
 		);
 
@@ -245,6 +276,7 @@ mod tests {
 		assert_eq!(order.p_low, 72.0);
 		assert_eq!(order.p_high, 100.0);
 		assert_eq!(order.quantity, 500.0);
+		assert_eq!(order.u_max, 500.0);
 		assert_eq!(order.gas, 0.05);
 		println!("{:?}", order.calc_flow_supply(81.09048166079447));
 		assert_eq!(order.calc_flow_supply(81.09048166079447), 162.33002965704407);

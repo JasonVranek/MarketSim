@@ -50,6 +50,7 @@ pub struct JsonOrder{
 	p_high: f64,
 	price: f64,
 	quantity: f64,		
+	u_max: f64,
 	gas: f64,	
 }
 
@@ -133,6 +134,7 @@ impl JsonOrder {
 			typed_json.p_high,
 			typed_json.price, 
 			typed_json.quantity, 
+			typed_json.u_max,
 			typed_json.gas,
 			))
 	}

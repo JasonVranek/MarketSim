@@ -1,8 +1,7 @@
 extern crate flow_rs;
 extern crate tokio;
 
-use flow_rs::exchange::MarketType;
-use flow_rs::simulation::simulation_config::{Constants, DistReason};
+use flow_rs::simulation::simulation_config::{DistReason};
 use flow_rs::simulation::simulation_history::UpdateReason;
 use flow_rs::controller::Controller;
 use flow_rs::simulation::simulation::{Simulation};

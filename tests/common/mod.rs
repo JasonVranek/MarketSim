@@ -37,6 +37,7 @@ pub fn setup_bid_limit_order() -> Order {
 		0.0,	// p_high
 		100.0,	// price
 		5.0,	// quantity
+		5.0,	// u_max
 		0.1,	// gas
 	)
 }
@@ -51,6 +52,7 @@ pub fn setup_ask_limit_order() -> Order {
 		0.0,	// p_high
 		100.0,	// price
 		5.0,	// quantity
+		5.0,	// u_max
 		0.1,	// gas
 	)
 }
@@ -65,6 +67,7 @@ pub fn setup_rand_bid_limit_order() -> Order {
 		gen_rand_f64(),	// p_high
 		gen_rand_f64(),	// price
 		gen_rand_f64(),	// quantity
+		gen_rand_f64(), // u_max
 		gen_rand_f64(),	// gas
 	)	
 }
@@ -80,6 +83,7 @@ pub fn setup_rand_ask_limit_order() -> Order {
 		gen_rand_f64(),	// p_high
 		gen_rand_f64(),	// price
 		gen_rand_f64(),	// quantity
+		gen_rand_f64(), // u_max
 		gen_rand_f64(),	// gas
 	)
 }
@@ -172,7 +176,7 @@ pub fn rand_enters(upper: u64) -> Vec<Order> {
 
 /// Generates a random Ask order of OrderType::Enter
 pub fn rand_ask_limit_enter() -> Order {
-	let (price, quantity) = gen_limit_order();			//TODOOO LOOK AT THIS AGAIN
+	let (price, quantity) = gen_limit_order();			
 	Order::new(
 		gen_rand_trader_id(),
 		OrderType::Enter,
@@ -182,13 +186,14 @@ pub fn rand_ask_limit_enter() -> Order {
 		0.0,	
 		price,
 		quantity,
+		quantity,
 		0.5,
 	)
 }
 
 /// Generates a random Bid order of OrderType::Enter
 pub fn rand_bid_limit_enter() -> Order {
-	let (price, quantity) = gen_limit_order();				//TODOOO LOOK AT THIS AGAIN
+	let (price, quantity) = gen_limit_order();				
 	Order::new(
 		gen_rand_trader_id(),
 		OrderType::Enter,
@@ -197,6 +202,7 @@ pub fn rand_bid_limit_enter() -> Order {
 		0.0,
 		0.0,
 		price,
+		quantity,
 		quantity,
 		0.5,
 	)
@@ -253,6 +259,7 @@ pub fn setup_orders() -> (Vec<Order>, Vec<Order>) {
     		0.0,
     		i as f64, 
     		5.0, 
+    		5.0,
     		0.5,
 		));
 		asks.push(Order::new(
@@ -264,6 +271,7 @@ pub fn setup_orders() -> (Vec<Order>, Vec<Order>) {
     		0.0,
     		i as f64, 
     		50.0, 
+    		5.0,
     		0.5,
 		));
 
@@ -305,6 +313,7 @@ pub fn setup_flow_orders() -> (Vec<Order>, Vec<Order>) {
     		100.0, 		// p_high
     		0.0,		// price
     		500.0,		// quantity
+    		500.0,		// u_max
     		0.1, 		// gas
 		));
 		asks.push(Order::new(
@@ -316,6 +325,7 @@ pub fn setup_flow_orders() -> (Vec<Order>, Vec<Order>) {
     		100.0, 		// p_high
     		0.0,		// price
     		500.0,		// quantity
+    		500.0,		// u_max
     		0.1, 		// gas
 		));
 
@@ -338,6 +348,7 @@ pub fn setup_ask_cross_orders(num_bids: usize) -> (Vec<Order>, Vec<Order>) {
     		0.0,
     		i as f64, 
     		5.0, 
+    		5.0,
     		0.5,
 		));
 	}
@@ -352,6 +363,7 @@ pub fn setup_ask_cross_orders(num_bids: usize) -> (Vec<Order>, Vec<Order>) {
     		0.0,
     		0.0, 
     		50.0, 
+    		50.0,
     		0.5,
 		));
 
@@ -364,6 +376,7 @@ pub fn setup_ask_cross_orders(num_bids: usize) -> (Vec<Order>, Vec<Order>) {
     		0.0,
     		0.0,
     		num_bids as f64 * 1000.0, 
+    		50.0,
     		50.0,
     		0.5, 
 		));	
@@ -385,6 +398,7 @@ pub fn setup_bid_cross_orders(num_asks: usize) -> (Vec<Order>, Vec<Order>) {
     		0.0,
     		50.0 + i as f64, 
     		5.0, 
+    		5.0,
     		0.5,
 		));
 	}
@@ -399,6 +413,7 @@ pub fn setup_bid_cross_orders(num_asks: usize) -> (Vec<Order>, Vec<Order>) {
     		0.0,
     		num_asks as f64 * 1000.0, 
     		50.0, 
+    		50.0,
     		0.5,
 		));
 
@@ -412,6 +427,7 @@ pub fn setup_bid_cross_orders(num_asks: usize) -> (Vec<Order>, Vec<Order>) {
     		0.0,
     		0.0, 
     		50.0, 
+    		50.0,
     		0.5,
 		));	
 

@@ -108,16 +108,20 @@ impl ClearingHouse {
 		} 
 	}
 
-	pub fn get_player_order_count(&self, id: &String) -> usize {
+	pub fn get_player_order_count(&self, id: &String) -> Result<usize, ()> {
 		let players = self.players.lock().unwrap();
-		let p = players.get(id).expect("get_player_order_count");
-		p.num_orders()
+		match players.get(id) {
+			Some(p) => Ok(p.num_orders()),
+			None => Err(()),
+		}
 	}
 
-	pub fn get_type(&self, id: &String) -> TraderT {
+	pub fn get_type(&self, id: &String) -> Result<TraderT, ()> {
 		let players = self.players.lock().unwrap();
-		let p = players.get(id).expect("get_player_order_count");
-		p.get_player_type()
+		match players.get(id) {
+			Some(p) => Ok(p.get_player_type()),
+			None => Err(()),
+		}
 	}
 
 	// Shuffles through the players matching the player_type and returns their id

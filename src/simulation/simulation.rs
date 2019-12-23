@@ -102,18 +102,7 @@ impl Simulation {
 	pub fn setup_investors(_dists: &Distributions, consts: &Constants) -> Vec<Investor> {
 		let mut invs = Vec::new();
 		for _ in 1..consts.num_investors {
-			let i = Investor::new(gen_trader_id(TraderT::Investor));
-			// if let Some(bal) = dists.sample_dist(DistReason::InvestorBalance) {
-			// 	i.balance = bal;
-			// } else {
-			// 	panic!("Couldn't setup investor balance");
-			// }
-			// if let Some(inv) = dists.sample_dist(DistReason::InvestorInventory) {
-			// 	i.inventory = inv;
-			// } else {
-			// 	panic!("Couldn't setup investor inventory");
-			// }
-			invs.push(i);
+			invs.push(Investor::new(gen_trader_id(TraderT::Investor)));
 		}
 		invs
 	}
@@ -127,19 +116,8 @@ impl Simulation {
 			let id = gen_trader_id(TraderT::Maker);
 			// random behavioral type for strategy
 			let maker_type = Maker::gen_rand_type();
-
-			let m = Maker::new(id, maker_type);
-			// if let Some(bal) = dists.sample_dist(DistReason::MakerBalance) {
-			// 	m.balance = bal;
-			// } else {
-			// 	panic!("Couldn't setup maker balance");
-			// }
-			// if let Some(inv) = dists.sample_dist(DistReason::MakerInventory) {
-			// 	m.inventory = inv;
-			// } else {
-			// 	panic!("Couldn't setup maker inventory");
-			// }
-			mkrs.push(m);
+			
+			mkrs.push(Maker::new(id, maker_type));
 		}
 		mkrs
 	}
@@ -161,7 +139,7 @@ impl Simulation {
 				let trader_id = house.get_rand_player_id(TraderT::Investor).expect("Couldn't get rand investor");
 
 				// Only add a new order if they dont already have one in the book
-				if house.get_player_order_count(&trader_id) == 0 {
+				if house.get_player_order_count(&trader_id).expect("get_player_order_count") == 0 {
 					// Decide bid or ask
 					let trade_type = match Distributions::fifty_fifty() {
 						true => TradeType::Ask,
@@ -187,13 +165,16 @@ impl Simulation {
 					let (p_l, p_h) = match ex_type {								
 						ExchangeType::LimitOrder => (price, price),
 						ExchangeType::FlowOrder => {
-							// How to calculate flow order price?
+							// Flow order price has constant offset between p_low and p_high
 							match trade_type {
 								TradeType::Ask => (price, price + consts.flow_order_offset),
 								TradeType::Bid => (price - consts.flow_order_offset, price),
 							}
 						}
 					};
+
+					// Sample the u_max (maximum shares / batch) from (0, quantity)
+					let u_max = Distributions::sample_uniform(0.0, quantity, None);
 
 					// Generate the order
 					let order = Order::new(trader_id.clone(), 
@@ -204,6 +185,7 @@ impl Simulation {
 									       p_h,
 									       price,
 									       quantity,
+									       u_max,
 									       dists.sample_dist(DistReason::InvestorGas).expect("Couldn't sample gas")
 					);
 
@@ -345,7 +327,7 @@ impl Simulation {
 				// allow more information to arrive from investors.
 				if block_num.read_count() < consts.maker_cold_start {break;}
 				// Only make new orders if the maker currently has none in the book
-				if house.get_player_order_count(&id) != 0 {continue;}
+				if house.get_player_order_count(&id).expect("get_player_order_count") != 0 {continue;}
 				// Randomly choose whether the maker should try to trade this block
 				match Distributions::do_with_prob(consts.maker_enter_prob) {
 					true => {},
@@ -584,7 +566,6 @@ impl Simulation {
 
 
 	pub fn calc_welfare(&self) -> (f64, f64, f64){
-		println!("in calc welfare");
 		let history = &self.history;
 		let house = &self.house;
 		let txs = history.transactions.lock().unwrap();
@@ -594,10 +575,6 @@ impl Simulation {
 		let mut mkr_welf = 0.0;
 		let mut min_welf = 0.0;
 
-		println!("{:?}", pool);
-
-		println!("\n\n\n {:?}", txs);
-
 		// For each transcaction 
 		for tx in txs.iter() {
 			// Find whether these tx were with an investor, maker, or miner
@@ -606,65 +583,99 @@ impl Simulation {
 			let buyer_oid = tx.payer_order_id;
 			let seller_oid = tx.vol_filler_order_id;
 
-			let (bid_price, bid_plow, bid_phigh);
+			// Flag for checking if trader order was found or not
+			let (mut bidder, mut asker) = (true, true);
 
+			let (mut bid_price, mut bid_plow) = (0.0, 0.0);
 			// Get the price parameters from the original bid order
 			match pool.get(&buyer_oid) {
 				Some((order, _time)) => {	
 					bid_price = order.price;
 					bid_plow = order.p_low;
-					bid_phigh = order.p_high;
 				},
-				None => continue,
+				None => {bidder = false},
 			}
 
-			let (ask_price, ask_plow, ask_phigh);
+			let (mut ask_price, mut ask_phigh) = (0.0, 0.0);
 			// Get the price parameters from the original ask order
 			match pool.get(&seller_oid) {
 				Some((order, _time)) => {	
 					ask_price = order.price;
-					ask_plow = order.p_low;
 					ask_phigh = order.p_high;
 				},
-				None => continue,
+				None => {asker = false},
 			}
 
 			// Determine the amount of welfare gained from order
 			match self.consts.market_type {
 				MarketType::KLF => {
-					println!("lalalalal");
-					// Calculate the 
-					// inv_welf += welfare;
-				},
-				MarketType::FBA|MarketType::CDA => {
-					// Positive welfare if they bought at a lower price than they bid
-					let welfare = (bid_price - tx.price) * tx.volume;
-					println!("Bidder: {:?}{}, p_old: {}, p_tx: {}, welfare: {}", buyer_type, buyer_oid, bid_price, tx.price, welfare);
-					match buyer_type {
-						TraderT::Investor => {
-							inv_welf += welfare;
-						},
-						TraderT::Maker => {
-							mkr_welf += welfare;
-						},
-						TraderT::Miner => {
-							min_welf += welfare;
-						},
+					if bidder {
+						// Positive welfare if they bought at a lower price than they bid
+						let welfare = (bid_plow - tx.price) * tx.volume;
+						println!("Bidder: {:?}{}, p_old: {}, p_tx: {}, welfare: {}", buyer_type, buyer_oid, bid_price, tx.price, welfare);
+						match buyer_type.expect("calc_welfare") {
+							TraderT::Investor => {
+								inv_welf += welfare;
+							},
+							TraderT::Maker => {
+								mkr_welf += welfare;
+							},
+							TraderT::Miner => {
+								min_welf += welfare;
+							},
+						}
 					}
 					
-					// Positive welfare if they sold at a higher price than they asked
-					let welfare = (tx.price - ask_price) * tx.volume;
-					println!("Asker: {:?}{}, p_old: {}, p_tx: {}, welfare: {}", seller_type, seller_oid, ask_price, tx.price, welfare);
-					match seller_type {
-						TraderT::Investor => {
-							inv_welf += welfare;
-						},
-						TraderT::Maker => {
-							mkr_welf += welfare;
-						},
-						TraderT::Miner => {
-							min_welf += welfare;
-						},
+					if asker {
+						// Positive welfare if they sold at a higher price than they asked
+						let welfare = (tx.price - ask_phigh) * tx.volume;
+						println!("Asker: {:?}{}, p_old: {}, p_tx: {}, welfare: {}", seller_type, seller_oid, ask_price, tx.price, welfare);
+						match seller_type.expect("calc_welfare") {
+							TraderT::Investor => {
+								inv_welf += welfare;
+							},
+							TraderT::Maker => {
+								mkr_welf += welfare;
+							},
+							TraderT::Miner => {
+								min_welf += welfare;
+							},
+						}
+					}
+				},
+				MarketType::FBA|MarketType::CDA => {
+					if bidder {
+						// Positive welfare if they bought at a lower price than they bid
+						let welfare = (bid_price - tx.price) * tx.volume;
+						println!("Bidder: {:?}{}, p_old: {}, p_tx: {}, welfare: {}", buyer_type, buyer_oid, bid_price, tx.price, welfare);
+						match buyer_type.expect("calc_welfare") {
+							TraderT::Investor => {
+								inv_welf += welfare;
+							},
+							TraderT::Maker => {
+								mkr_welf += welfare;
+							},
+							TraderT::Miner => {
+								min_welf += welfare;
+							},
+						}
+					}
+					
+					if asker {
+						// Positive welfare if they sold at a higher price than they asked
+						let welfare = (tx.price - ask_price) * tx.volume;
+						println!("Asker: {:?}{}, p_old: {}, p_tx: {}, welfare: {}", seller_type, seller_oid, ask_price, tx.price, welfare);
+						match seller_type.expect("calc_welfare") {
+							TraderT::Investor => {
+								inv_welf += welfare;
+							},
+							TraderT::Maker => {
+								mkr_welf += welfare;
+							},
+							TraderT::Miner => {
+								min_welf += welfare;
+							},
+						}
 					}
 				},
 			}

@@ -206,6 +206,10 @@ impl Maker {
 		// gas
 		let gas = self.calc_gas(wtd_gas, dists, consts);
 
+		// u_max
+		let bid_u_max = Distributions::sample_uniform(0.0, bid_amt, None);
+		let ask_u_max = Distributions::sample_uniform(0.0, ask_amt, None);
+
 		let bid_order = Order::new(self.trader_id.clone(), 
 									   OrderType::Enter,
 							   	       TradeType::Bid,
@@ -214,6 +218,7 @@ impl Maker {
 								       bid_p_high,
 								       bid_price,
 								       bid_amt,
+								       bid_u_max,
 								       gas
 		);
 
@@ -225,6 +230,7 @@ impl Maker {
 								       ask_p_high,
 								       bid_price,
 								       ask_amt,
+								       ask_u_max,
 								       gas
 		);
 
