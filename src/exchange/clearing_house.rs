@@ -293,7 +293,10 @@ impl ClearingHouse {
 				for pu in player_updates {
 					if pu.cancel == true {
 						// Cancel the player's order in the clearing house
-						self.cancel_player_order(pu.payer_id, pu.payer_order_id).expect("cda_cross_update...");
+						match self.cancel_player_order(pu.payer_id, pu.payer_order_id) {
+							Ok(()) => {},
+							Err(e) => println!("cda_cross_update: {:?}, {}", e, pu.payer_order_id),
+						}
 						continue;
 					}
 
@@ -339,7 +342,10 @@ impl ClearingHouse {
 				for pu in player_updates {
 					if pu.cancel == true {
 						// Cancel the player's order in the clearing house
-						self.cancel_player_order(pu.payer_id, pu.payer_order_id).expect("fba_cross_update...");
+						match self.cancel_player_order(pu.payer_id, pu.payer_order_id) {
+							Ok(()) => {},
+							Err(e) => println!("fba_batch_update: {:?}, {}", e, pu.payer_order_id),
+						}
 						continue;
 					}
 					// Update bidder: -bal, +inv
@@ -386,7 +392,10 @@ impl ClearingHouse {
 					for pu in player_updates {
 						if pu.cancel == true {
 						// Cancel the player's order in the clearing house
-						self.cancel_player_order(pu.payer_id, pu.payer_order_id).expect("klf_cross_update...");
+						match self.cancel_player_order(pu.payer_id, pu.payer_order_id) {
+							Ok(()) => {},
+							Err(e) => println!("flow_batch_update: {:?}, {}", e, pu.payer_order_id),
+						}
 						continue;
 					}
 						let volume = pu.volume;
@@ -490,7 +499,7 @@ impl ClearingHouse {
 					Err(e) => return Err(e),
 				}
 		} else {
-			return Err("Couldn't find trader to add order");
+			return Err("Couldn't find trader to cancel order");
 		}
 	}
 

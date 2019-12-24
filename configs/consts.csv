@@ -1,2 +1,2 @@
 batch_interval,num_investors,num_makers,block_size,num_blocks,market_type,front_run_perc,flow_order_offset,maker_prop_delay,maker_base_spread,maker_enter_prob,max_held_inventory,maker_inv_tax,maker_cold_start,maker_update_prob,
-300,250,50,100000,20,KLF,1.0,0.50,1,0.50,0.25,5.0,0.01,10,0.50,
+300,250,50,100000,20,KLF,1.0,0.25,1,0.25,0.25,5.0,0.01,10,0.50,

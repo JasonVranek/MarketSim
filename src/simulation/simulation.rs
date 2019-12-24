@@ -427,6 +427,8 @@ impl Simulation {
 				match &trade_results.cross_results {
 					Some(player_updates) => {
 						for p_u in player_updates {
+							// Don't count cancel orders in the performance metrics
+							if p_u.cancel == true {continue;}
 							let p = p_u.price;
 							sum_of_diffs_squared += (p - fund_val).powi(2);
 							num += 1.0;
@@ -465,6 +467,8 @@ impl Simulation {
 				match &trade_results.cross_results {
 					Some(player_updates) => {
 						for p_u in player_updates {
+							// Don't count cancel orders in the performance metrics
+							if p_u.cancel == true {continue;}
 							let p = p_u.price;
 							mean += p;
 							num += 1.0;
@@ -490,6 +494,8 @@ impl Simulation {
 				match &trade_results.cross_results {
 					Some(player_updates) => {
 						for p_u in player_updates {
+							// Don't count cancel orders in the performance metrics
+							if p_u.cancel == true {continue;}
 							let p = p_u.price;
 							sum_of_diffs_squared += (p - mean).powi(2);
 							num += 1.0;
@@ -595,6 +601,9 @@ impl Simulation {
 
 		// For each transcaction 
 		for tx in txs.iter() {
+			// Find whether this transaction was a cancel and exclude if it was
+			if tx.cancel {continue;}
+
 			// Find whether these tx were with an investor, maker, or miner
 			let buyer_type = house.get_type(&tx.payer_id);
 			let seller_type = house.get_type(&tx.vol_filler_id);
