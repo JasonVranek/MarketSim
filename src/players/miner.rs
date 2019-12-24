@@ -21,6 +21,7 @@ pub struct Miner {
 	pub balance: f64,
 	pub inventory: f64,
 	pub player_type: TraderT,
+	pub sent_orders: Mutex<Vec<(u64, OrderType)>>,
 }
 
 impl Miner {
@@ -33,6 +34,7 @@ impl Miner {
 			balance: 0.0,
 			inventory: 0.0,
 			player_type: TraderT::Miner,
+			sent_orders: Mutex::new(Vec::<(u64, OrderType)>::new()),
 		}
 	}
 
@@ -54,26 +56,6 @@ impl Miner {
 			self.frame = pool.pop_n(block_size);
 		}
 	}
-
-	/// 'Publishes' the Miner's frame by sequentially executing the orders in the frame
-	// pub fn publish_frame(&mut self, bids: Arc<Book>, asks: Arc<Book>, m_t: MarketType) -> Option<Vec<TradeResults>> {
-	// 	println!("Publishing Frame: {:?}", self.frame);
-	// 	if let Some(results) = MemPoolProcessor::seq_process_orders(&mut self.frame, 
-	// 										Arc::clone(&bids), 
-	// 										Arc::clone(&asks), 
-	// 										m_t.clone()) {
-	// 		// TradeResults were received from processing orders, implying results from CDA market
-	// 		return Some(results);
-	// 	}
-	// 	// Run auction after book has been updated (CDA is prcessed in seq_process_orders)
-	// 	if let Some(auction_result) = Auction::run_auction(bids, asks, m_t) {
-	// 		// Received some results from FBA or KLF auction, convert to same vector output format as CDA results
-	// 		let mut v = Vec::<TradeResults>::new();
-	// 		v.push(auction_result);
-	// 		return Some(v);
-	// 	} 
-	// 	None
-	// }
 
 	pub fn publish_frame(&mut self, bids: Arc<Book>, asks: Arc<Book>, m_t: MarketType) -> Option<Vec<TradeResults>> {
 		println!("Publishing Frame: {:?}", self.frame);
@@ -258,8 +240,26 @@ impl Player for Miner {
 
 	fn add_order(&mut self,	 order: Order) {
 		let mut orders = self.orders.lock().expect("Couldn't lock orders");
+		// Add the order info to the sent_orders to track orders to mempool
+		self.sent_orders.lock().expect("miner add_order").push((order.order_id, order.order_type.clone()));
 		orders.push(order);
 	} 
+
+	// Checks if a cancel order has already been sent to the mempool
+	fn check_double_cancel(&self, o_id: u64) -> bool {
+		let sent = self.sent_orders.lock().unwrap();
+		for order in sent.iter() {
+			if order.0 == o_id && order.1 == OrderType::Cancel {
+				return true;
+			}
+		}
+		false
+	}
+
+	fn add_to_sent(&self, o_id: u64, order_type: OrderType) {
+		let mut sent = self.sent_orders.lock().expect("add_to_sent");
+		sent.push((o_id, order_type));
+	}
 
 	fn num_orders(&self) -> usize {
 		self.orders.lock().unwrap().len()
@@ -308,20 +308,7 @@ impl Player for Miner {
         	return Err("ERROR: order not found to cancel");
         }
 	}
-	
-	// fn update_order_vol(&mut self, o_id: u64, vol_to_add: f64) -> Result<(), &'static str> {
-	// 	// Get the lock on the player's orders
-	// 	let mut orders = self.orders.lock().expect("couldn't acquire lock cancelling order");
-	// 	// Find the index of the existing order using the order_id
-	// 	let order_index: Option<usize> = orders.iter().position(|o| &o.order_id == &o_id);
-		
-	// 	if let Some(i) = order_index {
- //        	orders[i].quantity += vol_to_add;
- //        	return Ok(());
- //        } else {
- //        	return Err("ERROR: order not found to cancel");
- //        }
-	// }
+
 
 	// Updates the order's volume and removes it if the vol <= 0
 	fn update_order_vol(&mut self, o_id: u64, vol_to_add: f64) -> Result<(), &'static str> {

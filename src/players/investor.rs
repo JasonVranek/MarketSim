@@ -15,6 +15,7 @@ pub struct Investor {
 	pub balance: f64,
 	pub inventory: f64,
 	pub player_type: TraderT,
+	pub sent_orders: Mutex<Vec<(u64, OrderType)>>,
 }
 
 /// The 
@@ -26,6 +27,7 @@ impl Investor {
 			balance: 0.0,
 			inventory: 0.0,
 			player_type: TraderT::Investor,
+			sent_orders: Mutex::new(Vec::<(u64, OrderType)>::new()),
 		}
 	}
 
@@ -66,8 +68,27 @@ impl Player for Investor {
 
 	fn add_order(&mut self,	 order: Order) {
 		let mut orders = self.orders.lock().expect("Couldn't lock orders");
+		// Add the order info to the sent_orders to track orders to mempool
+		self.sent_orders.lock().expect("investor add_order").push((order.order_id, order.order_type.clone()));
 		orders.push(order);
 	} 
+
+	// Checks if a cancel order has already been sent to the mempool
+	fn check_double_cancel(&self, o_id: u64) -> bool {
+		let sent = self.sent_orders.lock().unwrap();
+		for order in sent.iter() {
+			if order.0 == o_id && order.1 == OrderType::Cancel {
+				return true;
+			}
+		}
+		false
+	}
+
+
+	fn add_to_sent(&self, o_id: u64, order_type: OrderType) {
+		let mut sent = self.sent_orders.lock().expect("add_to_sent");
+		sent.push((o_id, order_type));
+	}
 
 	fn num_orders(&self) -> usize {
 		self.orders.lock().unwrap().len()

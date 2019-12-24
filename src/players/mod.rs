@@ -1,5 +1,5 @@
 use crate::simulation::simulation_history::UpdateReason;
-use crate::order::order::Order;
+use crate::order::order::{Order, OrderType};
 use std::any::Any;
 
 
@@ -55,6 +55,10 @@ pub trait Player {
 	fn copy_orders(&self) -> Vec<Order>;
 
 	fn get_player_type(&self) -> TraderT;
+
+	fn check_double_cancel(&self, o_id: u64) -> bool;
+
+	fn add_to_sent(&self, o_id: u64, order_type: OrderType);
 
 	fn as_any(&self) -> &dyn Any;
 

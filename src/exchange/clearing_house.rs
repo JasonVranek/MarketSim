@@ -116,9 +116,15 @@ impl ClearingHouse {
 		let mut orders = Vec::new();
 		match players.get_mut(&id) {
 			Some(player) => {
+				// Get the order ids of player's current enter orders
 				let order_ids = player.get_enter_order_ids();
 				for o_id in order_ids {
+					// Check if the player has already sent a cancel for this order id to the mempool
+					if player.check_double_cancel(o_id) {continue;}
+					// Generate a cancel order for that enter order
 					if let Ok(cancel_order) = player.gen_cancel_order(o_id) {
+						// Record this in the player's history of sent orders to avoid double cancels.
+						player.add_to_sent(o_id, cancel_order.order_type.clone());
 						orders.push(cancel_order);
 					};
 				} 
