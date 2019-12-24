@@ -101,6 +101,7 @@ impl Auction {
 					Some(order) => order,
 					None => {
 						bids.add_order(new_bid).expect("Failed to add bid to book...");
+						bids.find_new_max();
 						results.cross_results = Some(updates);
 						return Some(results);
 					}
@@ -148,19 +149,20 @@ impl Auction {
 							));
 						
 						// Update the best ask price 
-						match asks.peek_best_price() {
-							Some(price) => {
-								// There are more asks in the book
-								asks.update_best_price(price);
-							},
-							None => {
-								// No more asks in the book,set default best ask price
-								asks.update_best_price(MAX_PRICE);
-								// The bid will be returned to the book for future crossings
-								bids.add_order(new_bid.clone()).expect("Failed to add bid to book...");
-								break;
-							}
-						}
+						// match asks.peek_best_price() {
+						// 	Some(price) => {
+						// 		// There are more asks in the book
+						// 		asks.update_best_price(price);
+						// 	},
+						// 	None => {
+						// 		// No more asks in the book,set default best ask price
+						// 		asks.update_best_price(MAX_PRICE);
+						// 		// The bid will be returned to the book for future crossings
+						// 		bids.add_order(new_bid.clone()).expect("Failed to add bid to book...");
+						// 		break;
+						// 	}
+						// }
+						asks.find_new_min();
 						// Don't return the bid to the book, instead restart loop to see if bid crosses anymore
 						continue;
 					},
@@ -180,16 +182,17 @@ impl Auction {
 							));
 
 						// Update the best ask price 
-						match asks.peek_best_price() {
-							Some(price) => {
-								// There are more asks in the book
-								asks.update_best_price(price);
-							},
-							None => {
-								// No more asks in the book, set default best ask price
-								asks.update_best_price(MAX_PRICE);
-							}
-						}
+						// match asks.peek_best_price() {
+						// 	Some(price) => {
+						// 		// There are more asks in the book
+						// 		asks.update_best_price(price);
+						// 	},
+						// 	None => {
+						// 		// No more asks in the book, set default best ask price
+						// 		asks.update_best_price(MAX_PRICE);
+						// 	}
+						// }
+						asks.find_new_min();
 						// Don't return the bid to the book
 						break;
 					}
@@ -197,7 +200,8 @@ impl Auction {
 			} else {
 				// New bid didn't cross, needs to be added to the book then exit
 				bids.add_order(new_bid.clone()).expect("Failed to add bid to book...");
-				log_order_book!(format!("{},{:?},{:?},",Order::order_to_csv(&new_bid),bids.orders,asks.orders));
+				bids.find_new_max();
+				// log_order_book!(format!("{},{:?},{:?},",Order::order_to_csv(&new_bid),bids.orders,asks.orders));
 				results.cross_results = Some(updates);
 				return Some(results);
 			}
@@ -223,7 +227,9 @@ impl Auction {
 				let mut best_bid = match bids.pop_from_end() {
 					Some(order) => order,
 					None => {
+						// There were no bids in the book, simply add this order to asks book
 						asks.add_order(new_ask).expect("Failed to add ask to book...");
+						asks.find_new_min();
 						results.cross_results = Some(updates);
 						return Some(results);
 					}
@@ -270,19 +276,20 @@ impl Auction {
 							));
 						
 						// Update the best bid price 
-						match bids.peek_best_price() {
-							Some(price) => {
-								// There are more asks in the book
-								bids.update_best_price(price);
-							},
-							None => {
-								// No more bids in the book, need to add this ask to book, set default best bid price
-								bids.update_best_price(MIN_PRICE);
-								// The ask will be returned to the book for future crossings
-								asks.add_order(new_ask.clone()).expect("Failed to add ask to book...");
-								break;
-							}
-						}
+						// match bids.peek_best_price() {
+						// 	Some(price) => {
+						// 		// There are more asks in the book
+						// 		bids.update_best_price(price);
+						// 	},
+						// 	None => {
+						// 		// No more bids in the book, need to add this ask to book, set default best bid price
+						// 		bids.update_best_price(MIN_PRICE);
+						// 		// The ask will be returned to the book for future crossings
+						// 		asks.add_order(new_ask.clone()).expect("Failed to add ask to book...");
+						// 		break;
+						// 	}
+						// }
+						bids.find_new_max();
 						// Don't return the bid to the book, instead restart loop to see if ask crosses anymore
 						continue;
 					},
@@ -302,16 +309,17 @@ impl Auction {
 							));
 						
 						// Update the best bid price 
-						match bids.peek_best_price() {
-							Some(price) => {
-								// There are more asks in the book
-								bids.update_best_price(price);
-							},
-							None => {
-								// No more bids in the book, need to add this ask to book, set default best bid price
-								bids.update_best_price(MIN_PRICE);
-							}
-						}
+						// match bids.peek_best_price() {
+						// 	Some(price) => {
+						// 		// There are more asks in the book
+						// 		bids.update_best_price(price);
+						// 	},
+						// 	None => {
+						// 		// No more bids in the book, need to add this ask to book, set default best bid price
+						// 		bids.update_best_price(MIN_PRICE);
+						// 	}
+						// }
+						bids.find_new_max();
 						// Don't return the ask to the book
 						break;
 					}
@@ -319,14 +327,15 @@ impl Auction {
 			} else {
 				// New ask didn't cross, needs to be added to the book
 				asks.add_order(new_ask.clone()).expect("Failed to add ask to book...");
-				log_order_book!(format!("{},{:?},{:?},",Order::order_to_csv(&new_ask),bids.orders,asks.orders));
+				asks.find_new_min();
+				// log_order_book!(format!("{},{:?},{:?},", Order::order_to_csv(&new_ask),bids.orders,asks.orders));
 
 				results.cross_results = Some(updates);
 				return Some(results);
 			}
 		}
 		// Done with loop, return the results
-		log_order_book!(format!("{},{:?},{:?},",Order::order_to_csv(&new_ask),bids.orders,asks.orders));
+		log_order_book!(format!("{},{:?},{:?},", Order::order_to_csv(&new_ask),bids.orders,asks.orders));
 		results.cross_results = Some(updates);
 		return Some(results);
 	}

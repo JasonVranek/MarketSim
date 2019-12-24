@@ -86,6 +86,8 @@ impl MemPoolProcessor {
 				}
 			},
 			MarketType::CDA => {
+				println!("best_bid: {}, best_ask:{}", bids.get_max_price(), asks.get_min_price());
+				println!("Processing: {:?}, {}, {}, {}", order.trade_type, order.trader_id, order.order_id, order.price);
 				// Since CDA we will check if the order transacts here:
 				match order.trade_type {
 					TradeType::Ask => {

@@ -285,7 +285,7 @@ impl Simulation {
 							
 						},
 						Err(_e) => {
-							// println!("{:?}", _e);
+							println!("asdfasdfsdf{:?}", _e);
 						}
 					}
 				}

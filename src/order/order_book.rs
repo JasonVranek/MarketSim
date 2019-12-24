@@ -1,13 +1,9 @@
 use std::sync::Arc;
-use core::f64::MAX;
+use core::f64::{MAX, MIN};
 use crate::order::order::{Order, TradeType};
 
 use std::sync::Mutex;
 use std::io;
-
-pub fn test_order_book_mod() {
-	println!("Hello, order_book!");
-}
 
 /// The struct for the order books in the exchange. The purpose
 /// is to keep track of bids and asks for calculating order crossings.
@@ -29,7 +25,7 @@ impl Book {
     		book_type,
     		orders: Mutex::new(Vec::<Order>::new()),
     		min_price: Mutex::new(MAX),
-    		max_price: Mutex::new(0.0),
+    		max_price: Mutex::new(MIN),
     	}
     }
 
@@ -96,10 +92,11 @@ impl Book {
         }
 
 		// Update the best price 
-        if let Some(last_order) = orders.last(){ 
+        if let Some(last_order) = orders.last() { 
             let best_price = last_order.price;
             self.update_best_price(best_price);
         } else {
+            // No more orders in the book, reset best price
             self.reset_best_price();
         }
 
@@ -269,12 +266,12 @@ impl Book {
     }
 
     /// Finds a new maximum Book price in the event that the previous was
-    /// updated or cancelled and updates the Book. Utilizes Book being sorted by p_high
+    /// updated or cancelled and updates the Book. 
     pub fn find_new_max(&self) {
-    	// find the order with the max price (from sorted list):
     	let orders = self.orders.lock().unwrap();
 
-    	let new_max = orders.last().unwrap().price; //UNSAFE!
+    	// Iterates over all orders until a minimum is found
+        let new_max = orders.iter().fold(MIN, |max, order| if order.price > max {order.price} else {max});
 
     	// Update the book with new max price
     	let mut max_price = self.max_price.lock().unwrap();

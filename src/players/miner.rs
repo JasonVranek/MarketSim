@@ -59,6 +59,7 @@ impl Miner {
 
 	pub fn publish_frame(&mut self, bids: Arc<Book>, asks: Arc<Book>, m_t: MarketType) -> Option<Vec<TradeResults>> {
 		println!("Publishing Frame: {:?}", self.frame);
+		println!("best_bid: {}, best_ask:{}", bids.get_max_price(), asks.get_min_price());
 		// The results from processing the orders in sequential order
 		// For CDA: Cancels, Transactions
 		// For FBA & KLF: Cancels,
@@ -115,29 +116,8 @@ impl Miner {
 			return Err("No orders in the frame to front-run");
 		}
 
-		let mut orders = self.frame.clone();
-		// Sort frame in descending order by price
-		orders.sort_by(|a, b| a.price.partial_cmp(&b.price).unwrap());
-		// look for highest priced bid and lowest priced ask
-		let mut best_bid: Option<Order> = None;
-		let mut best_ask: Option<Order> = None;
-
-		for o in orders.iter() {
-			match o.trade_type {
-				TradeType::Bid => {
-					// The best bid will be the first bid order in descending price order
-					if best_bid.is_none() {
-						best_bid = Some(o.clone());
-					}
-				},
-				TradeType::Ask => {
-					// The best ask in frame will be the last ask order in descending price order
-					best_ask = Some(o.clone());
-				},
-			}  
-		}
-		// println!("\norders in frame: {:?} \n selecting {:?}, {:?}", orders, best_bid, best_ask);
-
+		// Get the best bid and ask orders from the frame
+		let (best_bid, best_ask) = self.get_best_orders();
 
 		let mut front_run_order;
 		if best_bid.is_none() && best_ask.is_none() {
@@ -153,9 +133,14 @@ impl Miner {
 			// found both a best bid and best ask, pick the better one relative to current best book prices
 			let best_bid = best_bid.expect("frontrun");
 			let best_ask = best_ask.expect("frontrun");
-			let bid_profit = best_ask_price - best_bid.price;
-			let ask_profit = best_ask.price - best_bid_price;
-			// println!("\nbid_profit: {}, ask prof: {}\n", bid_profit, ask_profit, );
+			
+			// price of best bid in frame - best ask in book
+			let bid_profit = best_bid.price - best_ask_price;
+
+			// price of best bid in book - best ask in frame
+			let ask_profit = best_bid_price - best_ask.price;
+
+			println!("\nbid_profit: {}, ask prof: {}\n", bid_profit, ask_profit);
 			if bid_profit < 0.0 && ask_profit < 0.0 {
 				// Both orders are worse than best prices in order book, don't front-run
 				return Err("No orders in the frame good enough to front-run");
@@ -176,7 +161,7 @@ impl Miner {
 			}
 		}
 
-		// println!("\nbest bid: {}, best ask: {}, Chose frontrun order: {:?}\n", best_bid_price, best_ask_price, front_run_order);
+		println!("\nbest bid: {}, best ask: {}, Chose frontrun order: {:?}\n", best_bid_price, best_ask_price, front_run_order);
 
 		// Copy and update order 
 		front_run_order.trader_id = self.trader_id.clone();
@@ -186,6 +171,42 @@ impl Miner {
 		// Add order to highest priority spot in frame
 		self.frame.insert(0, front_run_order.clone());
 		return Ok(front_run_order);
+	}
+
+
+	// Returns the best bid and best ask in the frame
+	pub fn get_best_orders(&self) -> (Option<Order>, Option<Order>) {
+		let mut orders = self.frame.clone();
+		// Sort frame in descending order by price
+		orders.sort_by(|a, b| a.price.partial_cmp(&b.price).unwrap());
+		// look for highest priced bid and lowest priced ask
+		let mut best_bid: Option<Order> = None;
+		let mut best_ask: Option<Order> = None;
+		let mut best_bid_p = std::f64::MIN;
+		let mut best_ask_p = std::f64::MAX;
+
+		for o in orders.iter() {
+			// Exclude the cancel orders in frame
+			if o.order_type == OrderType::Cancel {continue;}
+
+			match o.trade_type {
+				TradeType::Bid => {
+					if o.price > best_bid_p {
+						best_bid_p = o.price;
+						best_bid = Some(o.clone());
+					}
+				},
+				TradeType::Ask => {
+					// The best ask in frame will be the last ask order in descending price order
+					if o.price < best_ask_p {
+						best_ask_p = o.price;
+						best_ask = Some(o.clone());
+					}
+				},
+			}  
+		}
+
+		(best_bid, best_ask)
 	}
 
 	// Iterate through each order in frame and make a vec to update the
