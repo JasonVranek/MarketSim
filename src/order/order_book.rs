@@ -310,13 +310,13 @@ impl Book {
                 }
                 {
                     let mut maxp = self.max_price.lock().unwrap();
-                    *maxp = 0.0;
+                    *maxp = MIN;
                 }
             }
             TradeType::Ask => {
                 {
                     let mut minp = self.min_price.lock().unwrap();
-                    *minp = 0.0;
+                    *minp = MIN;
                 }
                 {
                     let mut maxp = self.max_price.lock().unwrap();
@@ -340,7 +340,7 @@ mod tests {
 		let book = Book::new(TradeType::Bid);
 		assert_eq!(book.book_type, TradeType::Bid);
 		assert_eq!(*book.min_price.lock().unwrap(), MAX);
-		assert_eq!(*book.max_price.lock().unwrap(), 0.0);
+		assert_eq!(*book.max_price.lock().unwrap(), MIN);
 	}
 
 	#[test]
@@ -369,7 +369,7 @@ mod tests {
 			handle.join().unwrap();
 		}
 
-		assert_eq!(*book.max_price.lock().unwrap(), 50.0);
+		assert_eq!(*book.max_price.lock().unwrap(), MIN + 50.0);
 
 	}
 }

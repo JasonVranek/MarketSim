@@ -100,9 +100,7 @@ fn test_miner_frontrun() {
 	assert_eq!(pool.length(), n);
 	pool.sort_by_gas();
 	miner.make_frame(Arc::clone(&pool), BLOCK_SIZE);
-	let best_bid_price = 0.0;
-	let best_ask_price = 9999999.0;
-	let _order = miner.strategic_front_run(best_bid_price, best_ask_price).unwrap();
+	let _order = miner.random_front_run().unwrap();
 	assert_eq!(miner.frame.len(), n+1);
 }
 
@@ -170,9 +168,9 @@ fn test_cda_cancel() {
 	let mut maker = house.get_player(format!("mkr_bid")).unwrap();
 	let mut miner2 = house.get_player(format!("min_bid")).unwrap();
 
-	let cancel1 = investor.cancel_order(inv_order_id).unwrap();
-	let cancel2 = maker.cancel_order(mkr_order_id).unwrap();
-	let cancel3 = miner2.cancel_order(min_order_id).unwrap();
+	let cancel1 = investor.gen_cancel_order(inv_order_id).unwrap();
+	let cancel2 = maker.gen_cancel_order(mkr_order_id).unwrap();
+	let cancel3 = miner2.gen_cancel_order(min_order_id).unwrap();
 
 	let mut handles = Vec::new();
 	// Send all the orders in parallel to mempool
@@ -258,9 +256,9 @@ fn test_klf_cancel() {
 	let mut maker = house.get_player(format!("mkr_bid")).unwrap();
 	let mut miner2 = house.get_player(format!("min_bid")).unwrap();
 
-	let cancel1 = investor.cancel_order(inv_order_id).unwrap();
-	let cancel2 = maker.cancel_order(mkr_order_id).unwrap();
-	let cancel3 = miner2.cancel_order(min_order_id).unwrap();
+	let cancel1 = investor.gen_cancel_order(inv_order_id).unwrap();
+	let cancel2 = maker.gen_cancel_order(mkr_order_id).unwrap();
+	let cancel3 = miner2.gen_cancel_order(min_order_id).unwrap();
 
 	let mut handles = Vec::new();
 	// Send all the orders in parallel to mempool
@@ -346,9 +344,9 @@ fn test_fba_cancel() {
 	let mut maker = house.get_player(format!("mkr_bid")).unwrap();
 	let mut miner2 = house.get_player(format!("min_bid")).unwrap();
 
-	let cancel1 = investor.cancel_order(inv_order_id).unwrap();
-	let cancel2 = maker.cancel_order(mkr_order_id).unwrap();
-	let cancel3 = miner2.cancel_order(min_order_id).unwrap();
+	let cancel1 = investor.gen_cancel_order(inv_order_id).unwrap();
+	let cancel2 = maker.gen_cancel_order(mkr_order_id).unwrap();
+	let cancel3 = miner2.gen_cancel_order(min_order_id).unwrap();
 
 	let mut handles = Vec::new();
 	// Send all the orders in parallel to mempool

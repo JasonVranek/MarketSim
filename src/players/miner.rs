@@ -59,7 +59,6 @@ impl Miner {
 
 	pub fn publish_frame(&mut self, bids: Arc<Book>, asks: Arc<Book>, m_t: MarketType) -> Option<Vec<TradeResults>> {
 		println!("Publishing Frame: {:?}", self.frame);
-		println!("best_bid: {}, best_ask:{}", bids.get_max_price(), asks.get_min_price());
 		// The results from processing the orders in sequential order
 		// For CDA: Cancels, Transactions
 		// For FBA & KLF: Cancels,

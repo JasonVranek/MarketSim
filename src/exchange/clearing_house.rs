@@ -593,23 +593,37 @@ impl ClearingHouse {
 	}
 
 
+	// if player has negative inventory and so will buy at fund_val
+	//      cur_inv is negative so cur_inv * fund_val < 0, which subtracts from player bal
+	// if player has positive inventory and so will sell at fund_val
+	//      cur_inv is positive so cur_inv * fundval > 0 which adds to their player bal
 	pub fn liquidate(&self, fund_val: f64) {
 		let mut players = self.players.lock().unwrap();
 		for (_id, player) in players.iter_mut() {
 			let cur_inv = player.get_inv();
+			let update_amount = cur_inv * fund_val;
+				
+			player.update_bal(update_amount);
+			player.update_inv(-cur_inv);
+
+			// Update the balances of the specific maker types
 			if player.get_player_type() == TraderT::Maker {
-				println!("maker inv:{}", cur_inv);
-			}
-			if cur_inv < 0.0 {
-				// player has negative inventory and so will buy at fund_val
-				// cur_inv is negative so cur_inv * fund_val < 0, which subtracts from player bal
-				player.update_bal(cur_inv * fund_val);
-				player.update_inv(-cur_inv);
-			} else {
-				// player has positive inventory and so will sell at fund_val
-				// cur_inv is positive so cur_inv * fundval > 0 which adds to their player bal
-				player.update_bal(cur_inv * fund_val);
-				player.update_inv(-cur_inv); 
+				if let Some(maker) = player.as_any().downcast_ref::<Maker>() {
+					match maker.maker_type {
+						MakerT::Aggressive => {
+							let mut maker_profits = self.maker_profits.lock().unwrap();
+							maker_profits[MakerT::Aggressive as usize] += update_amount;
+						},
+						MakerT::RiskAverse => {
+							let mut maker_profits = self.maker_profits.lock().unwrap();
+							maker_profits[MakerT::RiskAverse as usize] += update_amount;
+						},
+						MakerT::Random => {
+							let mut maker_profits = self.maker_profits.lock().unwrap();
+							maker_profits[MakerT::Random as usize] += update_amount;
+						},
+					}
+				}
 			}
     		log_player_data!(player.log_to_csv(UpdateReason::Liquify));
 		}

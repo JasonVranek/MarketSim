@@ -149,19 +149,6 @@ impl Auction {
 							));
 						
 						// Update the best ask price 
-						// match asks.peek_best_price() {
-						// 	Some(price) => {
-						// 		// There are more asks in the book
-						// 		asks.update_best_price(price);
-						// 	},
-						// 	None => {
-						// 		// No more asks in the book,set default best ask price
-						// 		asks.update_best_price(MAX_PRICE);
-						// 		// The bid will be returned to the book for future crossings
-						// 		bids.add_order(new_bid.clone()).expect("Failed to add bid to book...");
-						// 		break;
-						// 	}
-						// }
 						asks.find_new_min();
 						// Don't return the bid to the book, instead restart loop to see if bid crosses anymore
 						continue;
@@ -182,16 +169,6 @@ impl Auction {
 							));
 
 						// Update the best ask price 
-						// match asks.peek_best_price() {
-						// 	Some(price) => {
-						// 		// There are more asks in the book
-						// 		asks.update_best_price(price);
-						// 	},
-						// 	None => {
-						// 		// No more asks in the book, set default best ask price
-						// 		asks.update_best_price(MAX_PRICE);
-						// 	}
-						// }
 						asks.find_new_min();
 						// Don't return the bid to the book
 						break;
@@ -276,19 +253,6 @@ impl Auction {
 							));
 						
 						// Update the best bid price 
-						// match bids.peek_best_price() {
-						// 	Some(price) => {
-						// 		// There are more asks in the book
-						// 		bids.update_best_price(price);
-						// 	},
-						// 	None => {
-						// 		// No more bids in the book, need to add this ask to book, set default best bid price
-						// 		bids.update_best_price(MIN_PRICE);
-						// 		// The ask will be returned to the book for future crossings
-						// 		asks.add_order(new_ask.clone()).expect("Failed to add ask to book...");
-						// 		break;
-						// 	}
-						// }
 						bids.find_new_max();
 						// Don't return the bid to the book, instead restart loop to see if ask crosses anymore
 						continue;
@@ -309,16 +273,6 @@ impl Auction {
 							));
 						
 						// Update the best bid price 
-						// match bids.peek_best_price() {
-						// 	Some(price) => {
-						// 		// There are more asks in the book
-						// 		bids.update_best_price(price);
-						// 	},
-						// 	None => {
-						// 		// No more bids in the book, need to add this ask to book, set default best bid price
-						// 		bids.update_best_price(MIN_PRICE);
-						// 	}
-						// }
 						bids.find_new_max();
 						// Don't return the ask to the book
 						break;
